@@ -58,4 +58,31 @@ def upload_certificate():
     return render_template("upload_certificate.html")
 
 @app.route("/mentor/dashboard")
-def mentor_dash
+def mentor_dashboard():
+    # TODO: fetch all pending certificates
+    return render_template("mentor_dashboard.html")
+
+@app.route("/mentor/approve/<int:cert_id>", methods=["POST"])
+def approve_certificate(cert_id):
+    # TODO: update status to approved, add points
+    return jsonify({"status": "approved"})
+
+@app.route("/mentor/reject/<int:cert_id>", methods=["POST"])
+def reject_certificate(cert_id):
+    # TODO: update status to rejected
+    return jsonify({"status": "rejected"})
+
+@app.route("/coordinator/dashboard")
+def coordinator_dashboard():
+    # TODO: fetch all students and their points
+    return render_template("coordinator_dashboard.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+# ── Run ──────────────────────────────────────────────────────
+if __name__ == "__main__":
+    init_db()
+    app.run(host="0.0.0.0", port=5000, debug=True)
