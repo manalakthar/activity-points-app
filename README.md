@@ -125,3 +125,38 @@ Restart VS Code after adding to PATH.
 | Leadership & Professional | 5-10 | 10 |
 | Sports, Arts & Wellness | 5 | 10 |
 | Special/National Initiatives | 5 | 10 |
+
+
+### Important while Coding: 
+Every time you open VS Code, do this:
+Step 1 — Open the right folder:
+File → Open Folder → activity-points-app -> cd activity-points-app
+Step 3 — Activate venv:
+powershell : venv\Scripts\activate
+You should see (venv) appear ✅
+Step 4 — Pull latest changes from GitHub (in case teammates pushed something):
+powershell :git pull
+Step 5 — Run the app:
+powershell: python app.py
+```
+
+**Step 6 — Open in browser:**
+```
+http://127.0.0.1:5000
+
+Every time you finish coding, do this:
+powershell: git add .
+git commit -m "describe what you did"
+git push
+```
+
+---
+
+### That's your daily routine:
+```
+Open VS Code
+→ activate venv
+→ git pull
+→ code
+→ git add, commit, push
+→ done!
