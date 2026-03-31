@@ -1,4 +1,4 @@
-# Activity Points Tracker — SJEC
+# Activity Points Tracker
 
 A web application for St Joseph Engineering College to track and manage 
 AICTE Student Activity Points (SAP) for B.E./B.Tech students.
