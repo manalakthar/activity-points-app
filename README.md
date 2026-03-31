@@ -1,13 +1,13 @@
-# Activity Points Tracker App
+# Activity Points Tracker — SJEC
+
 A web application for St Joseph Engineering College to track and manage 
 AICTE Student Activity Points (SAP) for B.E./B.Tech students.
 
-## What this app does
-- Students register, upload certificates, and track their activity points
-- Faculty mentors verify and approve submissions
-- Departmental coordinators review approved submissions
-- College SAP coordinator gives final approval
-- Points are automatically added to student profiles upon approval
+## About the Project
+This app digitizes the entire SAP process — students upload certificates, 
+faculty mentors verify them, coordinators approve them, and points are 
+automatically added to student profiles. Built with Python, Flask, SQLite, 
+OCR, and Face Recognition.
 
 ## Tech Stack
 - **Backend:** Python, Flask
@@ -19,106 +19,160 @@ AICTE Student Activity Points (SAP) for B.E./B.Tech students.
 ## Team
 | Person | Responsibility |
 |---|---|
-| Person 1 | Database + Flask routes (app.py) |
-| Person 2 | Frontend (templates + static) |
+| Person 1 | Database + Flask routes (app.py, database.py) |
+| Person 2 | Frontend (templates/, static/) |
 | Person 3 | OCR + Face Recognition (modules/) |
 | Person 4 | Integration + Testing |
 
 ---
 
-## Setup Instructions (do this once)
+## ⚙️ One-Time Setup (do this only once)
 
-### Step 1 — Install Tesseract (OCR engine)
+### 1. Install Tesseract
 Download and install from:
 https://github.com/UB-Mannheim/tesseract/wiki
 
-After installing, add to PATH:
+After installing, add this to your system PATH:
 ```
 C:\Program Files\Tesseract-OCR
 ```
-
-Verify it works:
+Verify:
 ```bash
 tesseract --version
 ```
 
-### Step 2 — Install Poppler (PDF support)
+### 2. Install Poppler (for PDF support)
 Download from:
 https://github.com/oschwartz10612/poppler-windows/releases
 
-Extract and add to PATH:
+Extract and add the bin folder to your system PATH:
 ```
 C:\path\to\poppler\Library\bin
 ```
-
-Verify it works:
+Verify:
 ```bash
 pdftoppm -v
 ```
 
-### Step 3 — Clone the project
+### 3. Clone the repository
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/manalakthar/activity-points-app.git
 cd activity-points-app
 ```
 
-### Step 4 — Create and activate virtual environment
+### 4. Create virtual environment
 ```bash
 python -m venv venv
-venv\Scripts\activate
 ```
 
-### Step 5 — Install setuptools FIRST (important!)
+### 5. Activate virtual environment
+```bash
+venv\Scripts\activate
+```
+You should see `(venv)` in your terminal ✅
+
+### 6. Install setuptools FIRST (very important!)
 ```bash
 pip install setuptools==69.5.1
 ```
 
-### Step 6 — Install all libraries
+### 7. Install all libraries
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 7 — Run the app
+### 8. Initialize the database
 ```bash
-python app.py
+python database.py
 ```
 
-Then open your browser and go to:
-```
+---
+
+## 🚀 Every Time You Start Coding
+
+Open your project in VS Code, then run these commands in order:
+```bash
+# Step 1 - Navigate to project folder
+cd activity-points-app
+
+# Step 2 - Activate virtual environment
+venv\Scripts\activate
+
+# Step 3 - Pull latest changes from GitHub
+git pull
+
+# Step 4 - Run the app
+python app.py
+
+# Step 5 - Open in browser
 http://127.0.0.1:5000
 ```
 
 ---
 
-## Common Issues & Fixes
+## 🛑 Every Time You Finish Coding
+```bash
+# Step 1 - Stop the running server
+Ctrl + C
+
+# Step 2 - Add all your changes
+git add .
+
+# Step 3 - Save changes with a message describing what you did
+git commit -m "describe what you did here"
+
+# Step 4 - Push to GitHub
+git push
+```
+
+---
+
+## ⚠️ Important Rules for the Team
+```
+1. Always git pull before you start coding
+2. Always git push when you finish coding
+3. Never push broken code — test before pushing
+4. Always activate venv before running anything
+5. Never commit database.db — it's in .gitignore
+```
+
+---
+
+## 🔧 Common Issues & Fixes
 
 ### face_recognition install fails
-Make sure you installed setuptools first:
 ```bash
 pip install setuptools==69.5.1
 pip install -r requirements.txt
 ```
 
 ### Tesseract not found error
-Add this to config.py:
+Make sure `config.py` has the correct path:
 ```python
-import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 ```
 
 ### PDF upload not working
-Make sure Poppler is installed and added to PATH correctly.
-Restart VS Code after adding to PATH.
+Make sure Poppler is installed and PATH is set correctly.
+Close and reopen VS Code after adding to PATH.
+
+### venv not activating
+Make sure you are inside the project folder first:
+```bash
+cd activity-points-app
+venv\Scripts\activate
+```
 
 ---
 
-## Activity Points Policy
-- Regular students: 100 points over 4 years
-- Lateral entry students: 75 points over 3 years
-- Suggested target: 12-15 points per semester
+## 📋 Activity Points Policy Summary
 
-### Activity Categories
-| Category | Participant Points | Organizer Points |
+| Student Type | Points Required |
+|---|---|
+| Regular (4 years) | 100 points |
+| Lateral Entry (3 years) | 75 points |
+
+| Category | Participant | Organizer |
 |---|---|---|
 | Societal & Community | 10 | 20 |
 | Technical & Innovation | 10 | 20 |
@@ -126,37 +180,22 @@ Restart VS Code after adding to PATH.
 | Sports, Arts & Wellness | 5 | 10 |
 | Special/National Initiatives | 5 | 10 |
 
-
-### Important while Coding: 
-Every time you open VS Code, do this:
-Step 1 — Open the right folder:
-File → Open Folder → activity-points-app -> cd activity-points-app
-Step 3 — Activate venv:
-powershell : venv\Scripts\activate
-You should see (venv) appear ✅
-Step 4 — Pull latest changes from GitHub (in case teammates pushed something):
-powershell :git pull
-Step 5 — Run the app:
-powershell: python app.py
-```
-
-**Step 6 — Open in browser:**
-```
-http://127.0.0.1:5000
-
-Every time you finish coding, do this:
-powershell: git add .
-git commit -m "describe what you did"
-git push
-```
-
 ---
 
-### That's your daily routine:
+## 📁 Project Structure
 ```
-Open VS Code
-→ activate venv
-→ git pull
-→ code
-→ git add, commit, push
-→ done!
+activity-points-app/
+├── modules/
+│   ├── face_auth.py        ← Face recognition
+│   └── ocr.py              ← OCR text extraction
+├── static/
+│   ├── style.css           ← Styles
+│   └── script.js           ← JavaScript
+├── templates/              ← All HTML pages
+├── known_faces/            ← Student reference photos
+├── uploads/                ← Uploaded certificates
+├── app.py                  ← Main Flask app
+├── config.py               ← Configuration
+├── database.py             ← Database setup
+└── requirements.txt        ← All libraries
+```
