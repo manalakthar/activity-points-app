@@ -1,8 +1,11 @@
 import sqlite3
+from datetime import datetime
+
+DATABASE = 'database.db'
 
 def get_db():
     """Connect to the database."""
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -89,9 +92,163 @@ def init_db():
         )
     ''')
 
+    # Pre-fill activities table with all activities from the policy
+    cursor.execute("SELECT COUNT(*) FROM activities")
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        activities = [
+            # Societal & Community
+            ('Societal & Community', 'NGO Volunteering', 6, 10, 20),
+            ('Societal & Community', 'Blood Donation Camp', 6, 10, 20),
+            ('Societal & Community', 'Tree Plantation Drive', 6, 10, 20),
+            ('Societal & Community', 'Village Survey Project', 6, 10, 20),
+            ('Societal & Community', 'Swachh Bharat Initiative', 6, 10, 20),
+            ('Societal & Community', 'Rural Outreach Program', 6, 10, 20),
+
+            # Technical & Innovation
+            ('Technical & Innovation', 'Hackathon/Ideathon', 8, 10, 20),
+            ('Technical & Innovation', 'Internship/Industrial Training', 8, 10, 20),
+            ('Technical & Innovation', 'Technical Paper Publication', 8, 10, 20),
+            ('Technical & Innovation', 'Patent/Copyright Filing', 8, 10, 20),
+            ('Technical & Innovation', 'Prototype Development', 8, 10, 20),
+            ('Technical & Innovation', 'Project Expo', 8, 10, 20),
+
+            # Leadership & Professional
+            ('Leadership & Professional', 'College Club Position', 0, 5, 10),
+            ('Leadership & Professional', 'Class Representative', 0, 5, 10),
+            ('Leadership & Professional', 'Tech Fest/Workshop Organization', 0, 5, 10),
+            ('Leadership & Professional', 'IEEE/ISTE Membership', 0, 5, 10),
+            ('Leadership & Professional', 'NCC/NSS Activities', 0, 5, 10),
+            ('Leadership & Professional', 'Online Course (NPTEL/Coursera)', 0, 10, 10),
+            ('Leadership & Professional', 'Certification Achievement', 0, 10, 10),
+
+            # Sports, Arts & Wellness
+            ('Sports, Arts & Wellness', 'VTU/State Level Sports', 0, 5, 10),
+            ('Sports, Arts & Wellness', 'Intra-college Sports/Cultural', 0, 5, 10),
+            ('Sports, Arts & Wellness', 'Yoga/Mental Health Workshop', 0, 5, 10),
+            ('Sports, Arts & Wellness', 'Green Initiative Activity', 0, 5, 10),
+
+            # Special/National Initiatives
+            ('Special/National Initiatives', 'NISP Implementation', 0, 5, 10),
+            ('Special/National Initiatives', 'Entrepreneurship Activity', 0, 5, 10),
+            ('Special/National Initiatives', 'Other Approved Activity', 0, 5, 10),
+        ]
+
+        cursor.executemany('''
+            INSERT INTO activities 
+            (category, activity_name, min_duration_hours, 
+             max_points_participant, max_points_organizer)
+            VALUES (?, ?, ?, ?, ?)
+        ''', activities)
+
     conn.commit()
     conn.close()
-    print("Database initialized successfully!")
+    print("✅ Database initialized successfully!")
+    print("✅ All tables created!")
+    print("✅ Activities pre-loaded!")
+
+# Helper functions for students
+def get_student(student_id):
+    conn = get_db()
+    student = conn.execute(
+        'SELECT * FROM students WHERE student_id = ?', 
+        (student_id,)
+    ).fetchone()
+    conn.close()
+    return student
+
+def get_student_by_email(email):
+    conn = get_db()
+    student = conn.execute(
+        'SELECT * FROM students WHERE email = ?', 
+        (email,)
+    ).fetchone()
+    conn.close()
+    return student
+
+def update_student_points(student_id, points_to_add):
+    conn = get_db()
+    conn.execute('''
+        UPDATE students 
+        SET total_points = total_points + ?
+        WHERE student_id = ?
+    ''', (points_to_add, student_id))
+
+    # Auto flag watch list if semester 6 and below required points
+    student = conn.execute(
+        'SELECT * FROM students WHERE student_id = ?',
+        (student_id,)
+    ).fetchone()
+
+    if student['semester'] >= 6 and student['total_points'] < student['points_required']:
+        conn.execute(
+            'UPDATE students SET watch_list = 1 WHERE student_id = ?',
+            (student_id,)
+        )
+
+    conn.commit()
+    conn.close()
+
+# Helper functions for submissions
+def get_submissions_by_student(student_id):
+    conn = get_db()
+    submissions = conn.execute('''
+        SELECT s.*, a.activity_name, a.category 
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        WHERE s.student_id = ?
+        ORDER BY s.submitted_date DESC
+    ''', (student_id,)).fetchall()
+    conn.close()
+    return submissions
+
+def get_pending_submissions_for_mentor(mentor_id):
+    conn = get_db()
+    submissions = conn.execute('''
+        SELECT s.*, a.activity_name, a.category, st.name as student_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.mentor_id = ? AND s.status = 'pending'
+        ORDER BY s.submitted_date DESC
+    ''', (mentor_id,)).fetchall()
+    conn.close()
+    return submissions
+
+def get_pending_submissions_for_coordinator():
+    conn = get_db()
+    submissions = conn.execute('''
+        SELECT s.*, a.activity_name, a.category, st.name as student_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.status = 'mentor_approved'
+        ORDER BY s.submitted_date DESC
+    ''').fetchall()
+    conn.close()
+    return submissions
+
+def get_pending_submissions_for_college():
+    conn = get_db()
+    submissions = conn.execute('''
+        SELECT s.*, a.activity_name, a.category, st.name as student_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.status = 'coordinator_approved'
+        ORDER BY s.submitted_date DESC
+    ''').fetchall()
+    conn.close()
+    return submissions
+
+def get_all_activities():
+    conn = get_db()
+    activities = conn.execute(
+        'SELECT * FROM activities ORDER BY category'
+    ).fetchall()
+    conn.close()
+    return activities
 
 if __name__ == '__main__':
     init_db()
