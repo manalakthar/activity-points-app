@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Dashboard — SAP Tracker SJEC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy:   #0d1b2a;
+      --navy2:  #1b2d42;
+      --navy3:  #243b55;
+      --amber:  #f5a623;
+      --amber2: #e8920d;
+      --cream:  #faf7f2;
+      --muted:  #7a8a99;
+      --border: #d4dde6;
+      --success:#2ecc71;
+      --danger: #e74c3c;
+      --white:  #ffffff;
+      --radius: 10px;
+      --shadow: 0 4px 24px rgba(13,27,42,.09);
+    }
+    body { font-family:'DM Sans',sans-serif; background:var(--cream); color:var(--navy); min-height:100vh; display:flex; flex-direction:column; }
+
+    /* NAV */
+    .nav { background:var(--navy); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:64px; position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(0,0,0,.25); }
+    .nav-brand { display:flex; align-items:center; gap:.75rem; text-decoration:none; }
+    .nav-logo { width:36px; height:36px; background:var(--amber); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:800; font-size:.95rem; color:var(--navy); }
+    .nav-title { font-family:'Syne',sans-serif; font-weight:700; font-size:1.05rem; color:#fff; }
+    .nav-title span { color:var(--amber); }
+    .nav-links { display:flex; align-items:center; gap:.2rem; }
+    .nav-links a { color:rgba(255,255,255,.7); text-decoration:none; padding:.45rem .85rem; border-radius:6px; font-size:.875rem; font-weight:500; transition:all .2s; }
+    .nav-links a:hover { background:rgba(255,255,255,.1); color:#fff; }
+    .nav-links a.active { background:var(--amber); color:var(--navy); font-weight:600; }
+    .nav-links a.logout { color:#ff8070; }
+    .nav-links a.logout:hover { background:rgba(231,76,60,.2); color:#fff; }
+
+    /* PAGE */
+    .page { flex:1; padding:2.5rem 2rem; max-width:1200px; margin:0 auto; width:100%; }
+
+    /* PAGE HEADER */
+    .page-header { margin-bottom:2rem; }
+    .page-header h1 { font-family:'Syne',sans-serif; font-size:2rem; font-weight:800; line-height:1.2; }
+    .page-header h1 span { color:var(--amber); }
+    .page-header p { color:var(--muted); margin-top:.4rem; font-size:.95rem; }
+
+    /* STATS */
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
+    .stat { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:1.4rem 1.5rem; box-shadow:var(--shadow); position:relative; overflow:hidden; }
+    .stat::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--amber); }
+    .stat-value { font-family:'Syne',sans-serif; font-size:2.1rem; font-weight:800; color:var(--navy); }
+    .stat-label { font-size:.78rem; color:var(--muted); margin-top:.25rem; font-weight:500; text-transform:uppercase; letter-spacing:.06em; }
+    .stat-icon { position:absolute; right:1.2rem; top:50%; transform:translateY(-50%); font-size:1.8rem; opacity:.15; }
+
+    /* CARD */
+    .card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); box-shadow:var(--shadow); padding:1.75rem; }
+    .card-title { font-family:'Syne',sans-serif; font-weight:700; font-size:1.05rem; color:var(--navy); margin-bottom:1.25rem; display:flex; align-items:center; gap:.6rem; }
+    .card-title .dot { width:8px; height:8px; background:var(--amber); border-radius:50%; flex-shrink:0; }
+
+    /* GRID */
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem; }
+
+    /* PROGRESS */
+    .progress-wrap { background:var(--border); border-radius:20px; height:12px; overflow:hidden; }
+    .progress-bar { height:100%; border-radius:20px; transition:width .6s ease; }
+    .progress-bar.amber  { background:var(--amber); }
+    .progress-bar.success{ background:var(--success); }
+    .progress-bar.danger { background:var(--danger); }
+
+    /* DETAIL LIST */
+    .detail-list { display:flex; flex-direction:column; gap:.75rem; }
+    .detail-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; font-size:.9rem; padding-bottom:.75rem; border-bottom:1px solid #f0f4f8; }
+    .detail-row:last-child { border-bottom:none; padding-bottom:0; }
+    .detail-row dt { color:var(--muted); font-weight:500; }
+    .detail-row dd { font-weight:600; }
+
+    /* TABLE */
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:.875rem; }
+    thead th { background:var(--navy); color:rgba(255,255,255,.85); font-family:'Syne',sans-serif; font-weight:600; font-size:.76rem; text-transform:uppercase; letter-spacing:.07em; padding:.85rem 1rem; text-align:left; white-space:nowrap; }
+    thead th:first-child { border-radius:8px 0 0 0; }
+    thead th:last-child  { border-radius:0 8px 0 0; }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .15s; }
+    tbody tr:hover { background:#f5f8ff; }
+    tbody td { padding:.85rem 1rem; vertical-align:middle; }
+    tbody tr:last-child { border-bottom:none; }
+
+    /* BADGE */
+    .badge { display:inline-block; padding:.25rem .75rem; border-radius:20px; font-size:.73rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+    .badge-pending  { background:#fff3cd; color:#856404; }
+    .badge-approved { background:#d1fae5; color:#065f46; }
+    .badge-rejected { background:#fee2e2; color:#991b1b; }
+    .badge-review   { background:#dbeafe; color:#1e3a8a; }
+    .badge-info     { background:#e0f2fe; color:#075985; }
+
+    /* BTN */
+    .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.65rem 1.4rem; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:.875rem; font-weight:600; cursor:pointer; text-decoration:none; transition:all .2s; }
+    .btn-primary { background:var(--amber); color:var(--navy); }
+    .btn-primary:hover { background:var(--amber2); box-shadow:0 4px 14px rgba(245,166,35,.4); }
+    .btn-sm { padding:.4rem .9rem; font-size:.8rem; }
+
+    /* ALERT */
+    .alert { padding:.9rem 1.2rem; border-radius:8px; font-size:.9rem; margin-bottom:1.25rem; border-left:4px solid; }
+    .alert-danger { background:#fee2e2; color:#991b1b; border-color:var(--danger); }
+
+    /* EMPTY */
+    .empty { text-align:center; padding:3rem 1rem; color:var(--muted); }
+    .empty-icon { font-size:2.5rem; margin-bottom:.75rem; }
+    .empty h3 { font-family:'Syne',sans-serif; color:var(--navy2); margin-bottom:.4rem; }
+
+    /* FOOTER */
+    footer { background:var(--navy); color:rgba(255,255,255,.35); text-align:center; padding:1rem; font-size:.78rem; }
+    footer span { color:var(--amber); }
+
+    /* ANIMATIONS */
+    @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    .fade-up   { animation:fadeUp .45s ease both; }
+    .d1 { animation-delay:.05s; }
+    .d2 { animation-delay:.10s; }
+    .d3 { animation-delay:.15s; }
+    .d4 { animation-delay:.20s; }
+    .d5 { animation-delay:.25s; }
+
+    /* RESPONSIVE */
+    @media(max-width:900px) {
+      .stats { grid-template-columns:repeat(2,1fr); }
+      .two-col { grid-template-columns:1fr; }
+    }
+    @media(max-width:540px) {
+      .stats { grid-template-columns:1fr 1fr; }
+      .page { padding:1.5rem 1rem; }
+      .nav { padding:0 1rem; }
+      .nav-links a:not(.active):not(.logout) { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-brand">
+    <div class="nav-logo">SAP</div>
+    <div class="nav-title">Activity Points <span>SJEC</span></div>
+  </a>
+  <div class="nav-links">
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Profile</a>
+    <a href="#">Activities</a>
+    <a href="#">+ Submit Claim</a>
+    <a href="#" class="logout">↩ Logout</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header fade-up">
+    <h1>Hello, <span>Rohan</span> 👋</h1>
+    <p>Track your AICTE Student Activity Points progress below.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat fade-up d1">
+      <div class="stat-value">28</div>
+      <div class="stat-label">Points Earned</div>
+      <div class="stat-icon">⭐</div>
+    </div>
+    <div class="stat fade-up d2">
+      <div class="stat-value">50</div>
+      <div class="stat-label">Points Required</div>
+      <div class="stat-icon">🎯</div>
+    </div>
+    <div class="stat fade-up d3">
+      <div class="stat-value">6</div>
+      <div class="stat-label">Total Submissions</div>
+      <div class="stat-icon">📋</div>
+    </div>
+    <div class="stat fade-up d4">
+      <div class="stat-value">3</div>
+      <div class="stat-label">Approved</div>
+      <div class="stat-icon">✅</div>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="card fade-up d2" style="margin-bottom:1.5rem;">
+    <div class="card-title"><div class="dot"></div> SAP Progress</div>
+    <div style="display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:.65rem;">
+      <span>28 / 50 points earned</span>
+      <span style="font-weight:600;color:var(--navy);">56%</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar amber" style="width:56%;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:.8rem;font-size:.8rem;color:var(--muted);">
+      <span>22 more points needed to meet the requirement</span>
+      <span style="color:var(--amber);font-weight:600;">In Progress</span>
+    </div>
+  </div>
+
+  <!-- Two Column: Student Info + Submission Summary -->
+  <div class="two-col">
+    <div class="card fade-up d3">
+      <div class="card-title"><div class="dot"></div> Student Details</div>
+      <dl class="detail-list">
+        <div class="detail-row"><dt>Student ID</dt><dd>4SO21CS042</dd></div>
+        <div class="detail-row"><dt>Department</dt><dd>CSE</dd></div>
+        <div class="detail-row"><dt>Year / Semester</dt><dd>Year 3, Sem 6</dd></div>
+        <div class="detail-row"><dt>Student Type</dt><dd>Regular</dd></div>
+        <div class="detail-row"><dt>Email</dt><dd>rohan@sjec.ac.in</dd></div>
+      </dl>
+    </div>
+
+    <div class="card fade-up d4">
+      <div class="card-title"><div class="dot"></div> Submission Summary</div>
+      <dl class="detail-list">
+        <div class="detail-row"><dt>Pending Review</dt><dd><span class="badge badge-pending">2</span></dd></div>
+        <div class="detail-row"><dt>Approved</dt><dd><span class="badge badge-approved">3</span></dd></div>
+        <div class="detail-row"><dt>Rejected</dt><dd><span class="badge badge-rejected">1</span></dd></div>
+        <div class="detail-row"><dt>Under Coordinator</dt><dd><span class="badge badge-review">1</span></dd></div>
+        <div class="detail-row" style="border:none;padding:0;margin-top:.5rem;">
+          <dt></dt>
+          <dd><a href="#" class="btn btn-primary btn-sm">+ New Claim</a></dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Submissions Table -->
+  <div class="card fade-up d5">
+    <div class="card-title" style="justify-content:space-between;">
+      <span style="display:flex;align-items:center;gap:.6rem;"><div class="dot"></div> My Submissions</span>
+      <a href="#" class="btn btn-primary btn-sm">+ Submit New</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Activity</th>
+            <th>Category</th>
+            <th>Role</th>
+            <th>Date</th>
+            <th>Claimed</th>
+            <th>Awarded</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">1</td>
+            <td style="font-weight:600;">National Level Hackathon</td>
+            <td><span class="badge badge-info">Competitions</span></td>
+            <td>Participant</td>
+            <td>12 Jan 2024</td>
+            <td>10</td>
+            <td><strong style="color:var(--success);">10</strong></td>
+            <td><span class="badge badge-approved">Approved</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">2</td>
+            <td style="font-weight:600;">IEEE Technical Talk</td>
+            <td><span class="badge badge-info">Seminars</span></td>
+            <td>Organizer</td>
+            <td>03 Feb 2024</td>
+            <td>15</td>
+            <td><strong style="color:var(--success);">12</strong></td>
+            <td><span class="badge badge-approved">Approved</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">3</td>
+            <td style="font-weight:600;">Industry Internship — TCS</td>
+            <td><span class="badge badge-info">Internship</span></td>
+            <td>Participant</td>
+            <td>15 May 2024</td>
+            <td>20</td>
+            <td><strong style="color:var(--success);">6</strong></td>
+            <td><span class="badge badge-approved">Approved</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">4</td>
+            <td style="font-weight:600;">State Level Sports Meet</td>
+            <td><span class="badge badge-info">Sports</span></td>
+            <td>Participant</td>
+            <td>22 Jul 2024</td>
+            <td>8</td>
+            <td style="color:var(--muted);">—</td>
+            <td><span class="badge badge-pending">Pending</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">5</td>
+            <td style="font-weight:600;">NPTEL Online Course</td>
+            <td><span class="badge badge-info">Online Learning</span></td>
+            <td>Participant</td>
+            <td>10 Aug 2024</td>
+            <td>5</td>
+            <td style="color:var(--muted);">—</td>
+            <td><span class="badge badge-review">Under Review</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem;">6</td>
+            <td style="font-weight:600;">NSS Blood Donation Camp</td>
+            <td><span class="badge badge-info">Social</span></td>
+            <td>Organizer</td>
+            <td>05 Sep 2024</td>
+            <td>5</td>
+            <td style="color:var(--muted);">—</td>
+            <td><span class="badge badge-rejected">Rejected</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  © 2024 St Joseph Engineering College — <span>Student Activity Points Tracker</span>
+</footer>
+
+</body>
+</html>
