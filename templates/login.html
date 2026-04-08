@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+
+{% block title %}Login{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+    }
+
+    main {
+        width: 100%;
+        max-width: 440px;
+        padding: 24px;
+    }
+
+    .login-logo {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+
+    .login-logo-icon {
+        width: 64px;
+        height: 64px;
+        background: white;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 800;
+        color: #1a365d;
+        margin: 0 auto 16px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+
+    .login-logo h1 {
+        color: white;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .login-logo p {
+        color: #bee3f8;
+        font-size: 14px;
+        margin-top: 4px;
+    }
+
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        padding: 36px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .login-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 4px;
+    }
+
+    .login-subtitle {
+        font-size: 14px;
+        color: #718096;
+        margin-bottom: 28px;
+    }
+
+    .role-selector {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+
+    .role-option {
+        position: relative;
+    }
+
+    .role-option input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .role-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 8px;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 12px;
+        font-weight: 600;
+        color: #718096;
+        text-align: center;
+    }
+
+    .role-label:hover {
+        border-color: #3182ce;
+        color: #3182ce;
+    }
+
+    .role-option input:checked + .role-label {
+        border-color: #3182ce;
+        background: #ebf8ff;
+        color: #2b6cb0;
+    }
+
+    .role-icon {
+        font-size: 20px;
+    }
+
+    .divider {
+        text-align: center;
+        font-size: 12px;
+        color: #a0aec0;
+        margin-bottom: 20px;
+        position: relative;
+    }
+
+    .divider::before, .divider::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        width: 42%;
+        height: 1px;
+        background: #e2e8f0;
+    }
+
+    .divider::before { left: 0; }
+    .divider::after { right: 0; }
+
+    .register-link {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 14px;
+        color: #718096;
+    }
+
+    .register-link a {
+        color: #3182ce;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-logo">
+    <div class="login-logo-icon">SAP</div>
+    <h1>Activity Points Tracker</h1>
+    <p>St Joseph Engineering College, Mangaluru</p>
+</div>
+
+<div class="login-card">
+    <div class="login-title">Welcome back!</div>
+    <div class="login-subtitle">Sign in to your account to continue</div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+        <div class="form-group">
+            <label class="form-label">Login as</label>
+            <div class="role-selector">
+                <div class="role-option">
+                    <input type="radio" name="role" id="role-student"
+                           value="student" checked>
+                    <label class="role-label" for="role-student">
+                        <span class="role-icon">🎓</span>
+                        Student
+                    </label>
+                </div>
+                <div class="role-option">
+                    <input type="radio" name="role" id="role-mentor"
+                           value="mentor">
+                    <label class="role-label" for="role-mentor">
+                        <span class="role-icon">👨‍🏫</span>
+                        Mentor
+                    </label>
+                </div>
+                <div class="role-option">
+                    <input type="radio" name="role" id="role-coordinator"
+                           value="coordinator">
+                    <label class="role-label" for="role-coordinator">
+                        <span class="role-icon">👩‍💼</span>
+                        Coordinator
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider">Enter your credentials</div>
+
+        <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input type="email" id="email" name="email"
+                   class="form-control" placeholder="you@sjec.ac.in" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input type="password" id="password" name="password"
+                   class="form-control" placeholder="Enter your password" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">
+            Sign In →
+        </button>
+    </form>
+
+    <div class="register-link">
+        New student? <a href="/register">Create an account</a>
+    </div>
+</div>
+{% endblock %}
