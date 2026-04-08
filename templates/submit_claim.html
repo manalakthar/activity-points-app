@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Submit Claim — SAP Tracker{% endblock %}
+
+{% block nav_links %}
+<a href="/student/dashboard">Dashboard</a>
+<a href="/student/profile">Profile</a>
+<a href="/activities">Activities</a>
+<a href="/student/submit" class="active">Submit Claim</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .submit-wrap { max-width: 780px; }
+  .pts-preview {
+    background: var(--navy);
+    color: var(--white);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+  .pts-preview-label { font-size: .82rem; color: rgba(255,255,255,.6); }
+  .pts-preview-val { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; color: var(--amber); }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="page fade-up">
+  <div class="page-header">
+    <h1>Submit <span>Activity Claim</span></h1>
+    <p>Fill in the details below to claim SAP points for your activity.</p>
+  </div>
+
+  <div class="submit-wrap">
+    <div class="card fade-up fade-up-1">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="POST" action="/student/submit" enctype="multipart/form-data">
+        <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+          <!-- Activity selection -->
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--amber);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;">
+              1 — Activity Details
+              <span style="flex:1;height:1px;background:var(--border);display:inline-block;"></span>
+            </div>
+            <div class="form-grid">
+              <div class="form-group form-full">
+                <label>Select Activity</label>
+                <select name="activity_id" required id="activity-select" onchange="updateMaxPts()">
+                  <option value="" disabled selected>Choose an activity…</option>
+                  {% for a in activities %}
+                  <option value="{{ a.activity_id }}"
+                          data-max-p="{{ a.max_points_participant }}"
+                          data-max-o="{{ a.max_points_organizer }}"
+                          data-min-h="{{ a.min_duration_hours }}"
+                          data-cat="{{ a.category }}">
+                    [{{ a.category }}] {{ a.activity_name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Your Role</label>
+                <select name="role" required id="role-select" onchange="updateMaxPts()">
+                  <option value="" disabled selected>Select role</option>
+                  <option value="participant">Participant</option>
+                  <option value="organizer">Organizer</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Organized By</label>
+                <input type="text" name="organized_by" placeholder="e.g. SJEC CSE Dept / IEEE" required>
+              </div>
+
+              <div class="form-group">
+                <label>Activity Date</label>
+                <input type="date" name="activity_date" required>
+              </div>
+
+              <div class="form-group">
+                <label>Duration (hours)</label>
+                <input type="number" name="duration_hours" min="0" step="0.5"
+                       placeholder="e.g. 2.5" required id="duration-input">
+              </div>
+            </div>
+          </div>
+
+          <!-- Points -->
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--amber);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;">
+              2 — Points Claim
+              <span style="flex:1;height:1px;background:var(--border);display:inline-block;"></span>
+            </div>
+
+            <div id="pts-info" style="display:none;" class="pts-preview">
+              <div>
+                <div class="pts-preview-label">Maximum claimable points</div>
+                <div class="pts-preview-val" id="max-pts-val">—</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="pts-preview-label" id="min-hrs-label"></div>
+                <div style="font-size:.8rem;color:rgba(255,255,255,.5);">Min duration required</div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Points Claimed</label>
+              <input type="number" name="points_claimed" min="0" step="1"
+                     placeholder="Enter points to claim" required id="pts-input">
+            </div>
+          </div>
+
+          <!-- Certificate + Protsaha -->
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--amber);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;">
+              3 — Certificate & Verification
+              <span style="flex:1;height:1px;background:var(--border);display:inline-block;"></span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+              <div class="form-group">
+                <div class="file-upload">
+                  <input type="file" name="certificate" accept="image/*,application/pdf" required id="cert-input">
+                  <div class="file-upload-icon">📄</div>
+                  <div class="file-upload-text">
+                    <strong>Upload Certificate / Proof</strong><br>
+                    PDF or Image · Max 10 MB
+                  </div>
+                  <div id="cert-name" style="margin-top:.6rem;font-size:.82rem;color:var(--amber);font-weight:600;"></div>
+                </div>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <input type="checkbox" name="protsaha_updated" id="protsaha" value="1">
+                <label for="protsaha">I have updated this activity in the <strong>Protsaha portal</strong></label>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1rem;justify-content:flex-end;">
+            <a href="/student/dashboard" class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-primary" style="padding:.75rem 2rem;">
+              Submit Claim →
+            </button>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function updateMaxPts() {
+    const sel = document.getElementById('activity-select');
+    const role = document.getElementById('role-select').value;
+    const opt  = sel.options[sel.selectedIndex];
+    if (!opt.value || !role) { document.getElementById('pts-info').style.display='none'; return; }
+
+    const maxP = opt.dataset.maxP;
+    const maxO = opt.dataset.maxO;
+    const minH = opt.dataset.minH;
+    const max  = role === 'organizer' ? maxO : maxP;
+
+    document.getElementById('pts-info').style.display = 'flex';
+    document.getElementById('max-pts-val').textContent = max + ' pts';
+    document.getElementById('min-hrs-label').textContent = minH + ' hrs';
+    document.getElementById('pts-input').max = max;
+  }
+
+  document.getElementById('cert-input').addEventListener('change', function() {
+    const name = this.files[0]?.name || '';
+    document.getElementById('cert-name').textContent = name ? '✓ ' + name : '';
+  });
+</script>
+{% endblock %}
