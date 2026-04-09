@@ -26,22 +26,7 @@ OCR, and Face Recognition.
 
 ---
 
-## ⚙️ One-Time Setup (do this only once)
-
-### 1. Install Tesseract
-Download and install from:
-https://github.com/UB-Mannheim/tesseract/wiki
-
-After installing, add this to your system PATH:
-```
-C:\Program Files\Tesseract-OCR
-```
-Verify:
-```bash
-tesseract --version
-```
-
-### 2. Install Poppler (for PDF support)
+###  Install Poppler (for PDF support)
 Download from:
 https://github.com/oschwartz10612/poppler-windows/releases
 
@@ -54,63 +39,35 @@ Verify:
 pdftoppm -v
 ```
 
-### 3. Clone the repository
-```bash
-git clone https://github.com/manalakthar/activity-points-app.git
-cd activity-points-app
+
 ```
 
-### 4. Create virtual environment
-```bash
-python -m venv venv
-```
-
-### 5. Activate virtual environment
+### Activate virtual environment
 ```bash
 venv\Scripts\activate
 ```
 You should see `(venv)` in your terminal ✅
 
-### 6. Install setuptools FIRST (very important!)
-```bash
-pip install setuptools==69.5.1
-```
-
-### 7. Install all libraries
-```bash
-pip install -r requirements.txt
-```
-
-### 8. Initialize the database
-```bash
-python database.py
-```
-
----
-
-## 🚀 Every Time You Start Coding
+##  Every Time You Start Coding
 
 Open your project in VS Code, then run these commands in order:
-```bash
-# Step 1 - Navigate to project folder
-cd activity-points-app
 
-# Step 2 - Activate virtual environment
+# Step 1 - Activate virtual environment
 venv\Scripts\activate
 
-# Step 3 - Pull latest changes from GitHub
+# Step 2 - Pull latest changes from GitHub
 git pull
 
-# Step 4 - Run the app
+# Step 3 - Run the app
 python app.py
 
-# Step 5 - Open in browser
+# Step 4 - Open in browser
 http://127.0.0.1:5000
 ```
 
 ---
 
-## 🛑 Every Time You Finish Coding
+## Every Time You Finish Coding
 ```bash
 # Step 1 - Stop the running server
 Ctrl + C
@@ -127,7 +84,7 @@ git push
 
 ---
 
-## ⚠️ Important Rules for the Team
+##  Important Rules for the Team
 ```
 1. Always git pull before you start coding
 2. Always git push when you finish coding
@@ -136,34 +93,7 @@ git push
 5. Never commit database.db — it's in .gitignore
 ```
 
----
-
-## 🔧 Common Issues & Fixes
-
-### face_recognition install fails
-```bash
-pip install setuptools==69.5.1
-pip install -r requirements.txt
-```
-
-### Tesseract not found error
-Make sure `config.py` has the correct path:
-```python
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-```
-
-### PDF upload not working
-Make sure Poppler is installed and PATH is set correctly.
-Close and reopen VS Code after adding to PATH.
-
-### venv not activating
-Make sure you are inside the project folder first:
-```bash
-cd activity-points-app
-venv\Scripts\activate
-```
-
----
+----
 
 ## 📋 Activity Points Policy Summary
 
