@@ -1,132 +1,100 @@
-{% extends "base.html" %}
-{% block title %}Activities — SAP Tracker{% endblock %}
+{% extends 'base.html' %}
 
-{% block nav_links %}
-<a href="/student/dashboard">Dashboard</a>
-<a href="/student/profile">Profile</a>
-<a href="/activities" class="active">Activities</a>
-<a href="/student/submit">+ Submit Claim</a>
-{% endblock %}
+{% block title %}Activity Categories{% endblock %}
 
-{% block extra_head %}
-<style>
-  .filter-bar {
-    display: flex; flex-wrap: wrap; gap: .75rem;
-    align-items: center; margin-bottom: 1.5rem;
-  }
-  .filter-btn {
-    padding: .4rem 1rem;
-    border-radius: 20px;
-    border: 1.5px solid var(--border);
-    background: var(--white);
-    font-size: .82rem; font-weight: 600;
-    color: var(--muted); cursor: pointer; transition: all .2s;
-  }
-  .filter-btn.active, .filter-btn:hover {
-    border-color: var(--amber); color: var(--navy); background: #fffbf0;
-  }
-  .activity-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem 1.5rem;
-    box-shadow: var(--shadow);
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 1rem; transition: box-shadow .2s, transform .2s;
-  }
-  .activity-card:hover { box-shadow: var(--shadow2); transform: translateY(-2px); }
-  .activity-grid { display: flex; flex-direction: column; gap: .75rem; }
-  .act-cat {
-    font-size: .72rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .08em;
-    color: var(--amber); margin-bottom: .25rem;
-  }
-  .act-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; }
-  .act-meta { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
-  .pts-box {
-    text-align: right; flex-shrink: 0;
-  }
-  .pts-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.4rem; color: var(--navy); }
-  .pts-sub { font-size: .72rem; color: var(--muted); }
-</style>
-{% endblock %}
-
-{% block body %}
-<div class="page fade-up">
-
-  <div class="page-header">
-    <h1>AICTE <span>Activities</span></h1>
-    <p>Browse all eligible activities for Student Activity Points.</p>
-  </div>
-
-  <!-- Filter -->
-  <div class="filter-bar" id="filter-bar">
-    <button class="filter-btn active" data-cat="all" onclick="filterCat(this,'all')">All</button>
-    {% set cats = activities | map(attribute='category') | unique | list %}
-    {% for cat in cats %}
-    <button class="filter-btn" data-cat="{{ cat }}" onclick="filterCat(this,'{{ cat }}')">{{ cat }}</button>
-    {% endfor %}
-    <input type="text" id="search-input" placeholder="🔍 Search activity…"
-      style="margin-left:auto;padding:.4rem .9rem;border:1.5px solid var(--border);border-radius:20px;font-size:.85rem;outline:none;font-family:'DM Sans',sans-serif;"
-      oninput="filterSearch(this.value)">
-  </div>
-
-  <!-- Activity List -->
-  <div class="activity-grid" id="activity-list">
-    {% for a in activities %}
-    <div class="activity-card fade-up" data-cat="{{ a.category }}" data-name="{{ a.activity_name | lower }}" style="animation-delay:{{ loop.index0 * 0.04 }}s;">
-      <div>
-        <div class="act-cat">{{ a.category }}</div>
-        <div class="act-name">{{ a.activity_name }}</div>
-        <div class="act-meta">
-          Min duration: {{ a.min_duration_hours }}h
-          &nbsp;·&nbsp;
-          <span>Participant max: <strong>{{ a.max_points_participant }} pts</strong></span>
-          &nbsp;·&nbsp;
-          <span>Organizer max: <strong>{{ a.max_points_organizer }} pts</strong></span>
-        </div>
-      </div>
-      <div class="pts-box">
-        <div class="pts-val">{{ a.max_points_participant }}</div>
-        <div class="pts-sub">max pts</div>
-        <a href="/student/submit?activity={{ a.activity_id }}" class="btn btn-primary btn-sm" style="margin-top:.6rem;">Claim</a>
-      </div>
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Activity Categories</div>
+    <div class="page-subtitle">
+        Browse all approved activities and their points
     </div>
-    {% else %}
-    <div class="empty">
-      <div class="empty-icon">📋</div>
-      <h3>No activities found</h3>
-      <p>Check back later for available activities.</p>
-    </div>
-    {% endfor %}
-  </div>
-
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script>
-  let currentCat = 'all';
-  let currentSearch = '';
+<!-- Points info banner -->
+<div class="card" style="background: linear-gradient(135deg, #1a365d, #2b6cb0);
+     color: white; border: none;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr;
+                gap: 24px; align-items: center;">
+        <div>
+            <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
+                AICTE Activity Points Policy
+            </div>
+            <div style="font-size: 14px; opacity: 0.85; line-height: 1.6;">
+                Regular students must earn <strong>100 points</strong> over
+                4 years. Lateral entry students must earn
+                <strong>75 points</strong> over 3 years.
+                Suggested target: <strong>12-15 points per semester</strong>.
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="background: rgba(255,255,255,0.15); border-radius: 12px;
+                        padding: 16px; text-align: center;">
+                <div style="font-size: 28px; font-weight: 800;">100</div>
+                <div style="font-size: 12px; opacity: 0.85;">
+                    Regular Points
+                </div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); border-radius: 12px;
+                        padding: 16px; text-align: center;">
+                <div style="font-size: 28px; font-weight: 800;">75</div>
+                <div style="font-size: 12px; opacity: 0.85;">
+                    Lateral Entry Points
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-  function applyFilter() {
-    document.querySelectorAll('#activity-list .activity-card').forEach(card => {
-      const matchCat = currentCat === 'all' || card.dataset.cat === currentCat;
-      const matchSearch = card.dataset.name.includes(currentSearch.toLowerCase());
-      card.style.display = (matchCat && matchSearch) ? 'flex' : 'none';
-    });
-  }
+<!-- Activities by category -->
+{% set categories = activities|groupby('category') %}
+{% for category, items in categories %}
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; align-items: center;
+                    justify-content: space-between;">
+            <div>
+                <div class="card-title">
+                    {% if category == 'Societal & Community' %}🤝
+                    {% elif category == 'Technical & Innovation' %}💡
+                    {% elif category == 'Leadership & Professional' %}🏆
+                    {% elif category == 'Sports, Arts & Wellness' %}⚽
+                    {% else %}🌟
+                    {% endif %}
+                    {{ category }}
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <span class="badge badge-approved">
+                    Participant: {{ items[0].max_points_participant }} pts
+                </span>
+                <span class="badge badge-mentor">
+                    Organizer: {{ items[0].max_points_organizer }} pts
+                </span>
+            </div>
+        </div>
+    </div>
 
-  function filterCat(btn, cat) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentCat = cat;
-    applyFilter();
-  }
+    <div style="display: grid; grid-template-columns:
+                repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+        {% for activity in items %}
+        <div style="padding: 12px 16px; background: #f7fafc;
+                    border-radius: 8px; border: 1px solid #e2e8f0;
+                    font-size: 14px; color: #2d3748;">
+            {{ activity.activity_name }}
+            {% if activity.min_duration_hours > 0 %}
+            <div style="font-size: 12px; color: #718096; margin-top: 4px;">
+                Min: {{ activity.min_duration_hours }} hours
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
 
-  function filterSearch(val) {
-    currentSearch = val;
-    applyFilter();
-  }
-</script>
+<div style="text-align: center; margin-top: 8px;">
+    <a href="/student/submit" class="btn btn-primary">
+        + Submit an Activity
+    </a>
+</div>
 {% endblock %}

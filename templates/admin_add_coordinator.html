@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Coordinator{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Add Coordinator</div>
+    <div class="page-subtitle">
+        Create a new SAP coordinator account
+    </div>
+</div>
+
+<div class="card" style="max-width: 560px;">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/admin/add_coordinator">
+        <div class="form-group">
+            <label class="form-label">Coordinator ID</label>
+            <input type="text" name="coordinator_id" class="form-control"
+                   placeholder="e.g. C001" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. Prof. Sarah Johnson" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control"
+                   placeholder="coordinator@sjec.ac.in" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control"
+                   placeholder="Set a password" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Coordinator Role</label>
+            <select name="role" class="form-control" required
+                    onchange="toggleDepartment(this.value)">
+                <option value="">Select role</option>
+                <option value="departmental">
+                    Departmental SAP Coordinator (Level 2)
+                </option>
+                <option value="college">
+                    College SAP Coordinator (Level 3)
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group" id="dept-group" style="display:none;">
+            <label class="form-label">Department</label>
+            <select name="department" class="form-control">
+                <option value="">Select department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">
+                    Information Technology
+                </option>
+                <option value="Electronics & Communication">
+                    Electronics & Communication
+                </option>
+                <option value="Electrical Engineering">
+                    Electrical Engineering
+                </option>
+                <option value="Mechanical Engineering">
+                    Mechanical Engineering
+                </option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Artificial Intelligence">
+                    Artificial Intelligence & ML
+                </option>
+            </select>
+            <div style="font-size: 12px; color: #718096; margin-top: 4px;">
+                Only required for Departmental coordinators
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">
+                + Add Coordinator
+            </button>
+            <a href="/admin/dashboard" class="btn btn-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleDepartment(role) {
+    const deptGroup = document.getElementById('dept-group');
+    deptGroup.style.display = role === 'departmental' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

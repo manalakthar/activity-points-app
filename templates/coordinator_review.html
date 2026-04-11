@@ -1,124 +1,248 @@
-{% extends "base.html" %}
-{% block title %}Review Submission — Coordinator{% endblock %}
+{% extends 'base.html' %}
 
-{% block nav_links %}
-<a href="/coordinator/dashboard">← Back to Dashboard</a>
-{% endblock %}
+{% block title %}Coordinator Review{% endblock %}
 
-{% block extra_head %}
+{% block extra_css %}
 <style>
-  .review-grid { display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; align-items: start; }
-  @media(max-width:900px) { .review-grid { grid-template-columns: 1fr; } }
-  .cert-preview { border:2px solid var(--border); border-radius:10px; overflow:hidden; background:#f8fafc; text-align:center; padding:1rem; }
-  .extracted-text { background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:1rem; font-size:.82rem; color:var(--navy2); font-family:monospace; max-height:180px; overflow-y:auto; white-space:pre-wrap; }
-  .review-action-bar { display:flex; gap:.75rem; flex-wrap:wrap; padding-top:1.25rem; border-top:1px solid var(--border); margin-top:1.25rem; }
+    .review-grid {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 1.5rem;
+        align-items: start;
+    }
+    @media(max-width:900px) {
+        .review-grid { grid-template-columns: 1fr; }
+    }
+    .cert-preview {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #f8fafc;
+        text-align: center;
+        padding: 1rem;
+    }
+    .cert-preview img { max-width: 100%; border-radius: 6px; }
+    .extracted-text {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        font-size: .82rem;
+        color: #2d3748;
+        font-family: monospace;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+    .detail-list { display: flex; flex-direction: column; gap: 8px; }
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f4f8;
+    }
+    .detail-row dt { color: #718096; font-weight: 500; }
+    .detail-row dd { color: #1a202c; font-weight: 600; }
 </style>
 {% endblock %}
 
-{% block body %}
-<div class="page-wide fade-up">
-
-  <div class="page-header">
-    <h1>Coordinator <span>Review</span></h1>
-    <p>Submission #{{ submission.submission_id }} — {{ submission.student_name }}</p>
-  </div>
-
-  <div class="review-grid">
-    <div style="display:flex;flex-direction:column;gap:1.25rem;">
-
-      <div class="card fade-up fade-up-1">
-        <div class="card-title"><div class="dot"></div> Student Information</div>
-        <div class="detail-list">
-          <div class="detail-row"><dt>Name</dt><dd>{{ submission.student_name }}</dd></div>
-          <div class="detail-row"><dt>Student ID</dt><dd>{{ submission.student_id }}</dd></div>
-          <div class="detail-row"><dt>Submitted</dt><dd>{{ submission.submitted_date }}</dd></div>
-          <div class="detail-row"><dt>Reviewed Date</dt><dd>{{ submission.reviewed_date or '—' }}</dd></div>
-        </div>
-      </div>
-
-      <div class="card fade-up fade-up-2">
-        <div class="card-title"><div class="dot"></div> Activity Details</div>
-        <div class="detail-list">
-          <div class="detail-row"><dt>Activity</dt><dd>{{ submission.activity_name }}</dd></div>
-          <div class="detail-row"><dt>Category</dt><dd><span class="badge badge-info">{{ submission.category }}</span></dd></div>
-          <div class="detail-row"><dt>Role</dt><dd>{{ submission.role | capitalize }}</dd></div>
-          <div class="detail-row"><dt>Organized By</dt><dd>{{ submission.organized_by }}</dd></div>
-          <div class="detail-row"><dt>Activity Date</dt><dd>{{ submission.activity_date }}</dd></div>
-          <div class="detail-row"><dt>Duration</dt><dd>{{ submission.duration_hours }} hrs</dd></div>
-          <div class="detail-row"><dt>Points Claimed</dt><dd><strong>{{ submission.points_claimed }}</strong></dd></div>
-          <div class="detail-row"><dt>Points Awarded (Mentor)</dt><dd>
-            {% if submission.points_awarded %}
-              <strong style="color:var(--success);">{{ submission.points_awarded }}</strong>
-            {% else %}—{% endif %}
-          </dd></div>
-          <div class="detail-row"><dt>Face Match</dt><dd>
-            {% if submission.face_matched == true %}<span style="color:var(--success);">✅ Matched</span>
-            {% elif submission.face_matched == false %}<span style="color:var(--danger);">❌ No Match</span>
-            {% else %}<span style="color:var(--muted);">Not checked</span>{% endif %}
-          </dd></div>
-          <div class="detail-row"><dt>Protsaha Updated</dt><dd>
-            {% if submission.protsaha_updated %}<span style="color:var(--success);">✅ Yes</span>
-            {% else %}<span style="color:var(--muted);">No</span>{% endif %}
-          </dd></div>
-          <div class="detail-row"><dt>Current Status</dt><dd>
-            <span class="badge {% if submission.status == 'approved' %}badge-approved{% elif submission.status == 'rejected' %}badge-rejected{% elif submission.status == 'pending' %}badge-pending{% else %}badge-review{% endif %}">
-              {{ submission.status }}
-            </span>
-          </dd></div>
-        </div>
-      </div>
-
-      {% if submission.extracted_text %}
-      <div class="card fade-up fade-up-3">
-        <div class="card-title"><div class="dot"></div> OCR Extracted Text</div>
-        <div class="extracted-text">{{ submission.extracted_text }}</div>
-      </div>
-      {% endif %}
-
-      <div class="card fade-up fade-up-3">
-        <div class="card-title"><div class="dot"></div> Coordinator Decision</div>
-        <form method="POST" action="/coordinator/review/{{ submission.submission_id }}">
-          <div style="display:flex;flex-direction:column;gap:1rem;">
-            <div class="form-group">
-              <label>Final Points to Award</label>
-              <input type="number" name="points_awarded" min="0"
-                     max="{{ submission.points_claimed }}"
-                     value="{{ submission.points_awarded or submission.points_claimed }}" required>
-            </div>
-            <div class="form-group">
-              <label>Coordinator Remarks (optional)</label>
-              <textarea name="comments" placeholder="Notes for college admin or student…"></textarea>
-            </div>
-            <div class="review-action-bar">
-              <button type="submit" name="action" value="approve" class="btn btn-success">✅ Approve</button>
-              <button type="submit" name="action" value="reject"  class="btn btn-danger">❌ Reject</button>
-              <a href="/coordinator/dashboard" class="btn btn-ghost">Cancel</a>
-            </div>
-          </div>
-        </form>
-      </div>
-
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Final Review</div>
+    <div class="page-subtitle">
+        SAP Coordinator — Final Approval
     </div>
+</div>
 
-    <div style="display:flex;flex-direction:column;gap:1.25rem;">
-      <div class="card fade-up fade-up-1">
-        <div class="card-title"><div class="dot"></div> Certificate / Proof</div>
-        {% if submission.certificate_path %}
-          <div class="cert-preview">
-            {% if submission.certificate_path.endswith('.pdf') %}
-              <div style="padding:2rem;color:var(--muted);">📄 PDF Certificate<br><br>
-                <a href="/{{ submission.certificate_path }}" target="_blank" class="btn btn-navy btn-sm">Open PDF</a>
-              </div>
-            {% else %}
-              <img src="/{{ submission.certificate_path }}" alt="Certificate" style="max-width:100%;">
-              <div style="margin-top:.75rem;"><a href="/{{ submission.certificate_path }}" target="_blank" class="btn btn-ghost btn-sm">View Full</a></div>
-            {% endif %}
-          </div>
-        {% else %}
-          <div class="empty" style="padding:2rem;"><div class="empty-icon">📎</div><p>No certificate uploaded</p></div>
+<div class="review-grid">
+
+    <!-- Left: Details -->
+    <div style="display:flex; flex-direction:column; gap:1.25rem;">
+
+        <!-- Student Info -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Student Information</div>
+            </div>
+            <div class="detail-list">
+                <div class="detail-row">
+                    <dt>Name</dt>
+                    <dd>{{ submission.student_name }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Student ID</dt>
+                    <dd>{{ submission.student_id }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Submitted</dt>
+                    <dd>{{ submission.submitted_date }}</dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Info -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Activity Details</div>
+            </div>
+            <div class="detail-list">
+                <div class="detail-row">
+                    <dt>Activity</dt>
+                    <dd>{{ submission.activity_name }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Category</dt>
+                    <dd>{{ submission.category }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Role</dt>
+                    <dd>{{ submission.role|capitalize }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Organized By</dt>
+                    <dd>{{ submission.organized_by }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Date</dt>
+                    <dd>{{ submission.activity_date }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Duration</dt>
+                    <dd>{{ submission.duration_hours }} hrs</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Points Claimed</dt>
+                    <dd><strong>{{ submission.points_claimed }}</strong></dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Max Allowed (Participant)</dt>
+                    <dd>{{ submission.max_points_participant }} pts</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Max Allowed (Organizer)</dt>
+                    <dd>{{ submission.max_points_organizer }} pts</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Face Verified</dt>
+                    <dd>
+                        {% if submission.face_matched %}
+                            <span style="color:#38a169;">✅ Yes</span>
+                        {% else %}
+                            <span style="color:#e53e3e;">❌ No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Protsaha Updated</dt>
+                    <dd>
+                        {% if submission.protsaha_updated %}
+                            <span style="color:#38a169;">✅ Yes</span>
+                        {% else %}
+                            <span style="color:#718096;">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- OCR Text -->
+        {% if submission.extracted_text %}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">OCR Extracted Text</div>
+                <div class="card-subtitle">
+                    Automatically extracted from certificate
+                </div>
+            </div>
+            <div class="extracted-text">
+                {{ submission.extracted_text }}
+            </div>
+        </div>
         {% endif %}
-      </div>
+
+        <!-- Final Decision Form -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Final Decision</div>
+                <div class="card-subtitle">
+                    Points awarded here are directly added to
+                    the student's profile
+                </div>
+            </div>
+            <form method="POST"
+                  action="/coordinator/review/{{ submission.submission_id }}">
+                <div class="form-group">
+                    <label class="form-label">Points to Award</label>
+                    <input type="number" name="points_awarded"
+                           class="form-control"
+                           min="0"
+                           max="{{ submission.max_points_organizer }}"
+                           value="{{ submission.points_claimed }}"
+                           required>
+                    <div style="font-size:12px; color:#718096; margin-top:4px;">
+                        Maximum allowed:
+                        {% if submission.role == 'organizer' %}
+                            {{ submission.max_points_organizer }} pts
+                        {% else %}
+                            {{ submission.max_points_participant }} pts
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:12px; margin-top:20px;
+                            padding-top:20px; border-top:1px solid #e2e8f0;">
+                    <button type="submit" name="action"
+                            value="approve" class="btn btn-success">
+                        ✅ Final Approve & Award Points
+                    </button>
+                    <button type="submit" name="action"
+                            value="reject" class="btn btn-danger">
+                        ❌ Reject
+                    </button>
+                    <a href="/coordinator/dashboard"
+                       class="btn btn-outline">Back</a>
+                </div>
+            </form>
+        </div>
+
     </div>
-  </div>
+
+    <!-- Right: Certificate -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Certificate / Proof</div>
+            </div>
+            {% if submission.certificate_path %}
+                <div class="cert-preview">
+                    {% if submission.certificate_path.endswith('.pdf') %}
+                        <div style="padding:2rem; color:#718096;">
+                            📄 PDF Certificate<br><br>
+                            <a href="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                               target="_blank" class="btn btn-primary">
+                                Open PDF
+                            </a>
+                        </div>
+                    {% else %}
+                        <img src="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                             alt="Certificate">
+                        <div style="margin-top:.75rem;">
+                            <a href="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                               target="_blank" class="btn btn-outline">
+                                View Full Size
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div style="text-align:center; padding:2rem; color:#718096;">
+                    <div style="font-size:40px;">📎</div>
+                    <p>No certificate uploaded</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
 </div>
 {% endblock %}

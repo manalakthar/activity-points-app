@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
 from datetime import datetime
 import os
 from database import (
@@ -18,6 +18,10 @@ UPLOAD_FOLDER = 'uploads'
 KNOWN_FACES_DIR = 'known_faces'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # Initialize database when app starts
 init_db()
@@ -339,19 +343,47 @@ def coordinator_review(submission_id):
 
     if request.method == 'POST':
         action = request.form.get('action')
-        status = 'coordinator_approved' if action == 'approve' else 'rejected'
+        points_awarded = int(request.form.get('points_awarded', 0))
 
-        conn.execute('''
-            UPDATE submissions
-            SET status = ?, reviewed_date = ?
-            WHERE submission_id = ?
-        ''', (status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
-        conn.commit()
-        conn.close()
+        if action == 'approve':
+            # Update submission as fully approved
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'approved', points_awarded = ?,
+                reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (points_awarded,
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  submission_id))
+
+            # Get student id
+            submission = conn.execute(
+                'SELECT student_id FROM submissions WHERE submission_id = ?',
+                (submission_id,)
+            ).fetchone()
+
+            conn.commit()
+            conn.close()
+
+            # Add points to student profile
+            update_student_points(submission['student_id'], points_awarded)
+
+        else:
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'rejected', reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  submission_id))
+            conn.commit()
+            conn.close()
+
         return redirect(url_for('coordinator_dashboard'))
 
     submission = conn.execute('''
-        SELECT s.*, a.activity_name, a.category, st.name as student_name
+        SELECT s.*, a.activity_name, a.category,
+               a.max_points_participant, a.max_points_organizer,
+               st.name as student_name
         FROM submissions s
         JOIN activities a ON s.activity_id = a.activity_id
         JOIN students st ON s.student_id = st.student_id
@@ -362,95 +394,11 @@ def coordinator_review(submission_id):
     return render_template('coordinator_review.html', submission=submission)
 
 # ============================================================
-# COLLEGE DASHBOARD
-# ============================================================
-
-@app.route('/college/dashboard')
-def college_dashboard():
-    if session.get('role') != 'college':
-        return redirect(url_for('login'))
-
-    submissions = get_pending_submissions_for_college()
-
-    conn = get_db()
-    watchlist = conn.execute(
-        'SELECT * FROM students WHERE watch_list = 1'
-    ).fetchall()
-    conn.close()
-
-    return render_template('college_dashboard.html',
-                           submissions=submissions,
-                           watchlist=watchlist,
-                           name=session['name'])
-
-# ============================================================
-# COLLEGE FINAL APPROVAL
-# ============================================================
-
-@app.route('/college/review/<int:submission_id>', methods=['GET', 'POST'])
-def college_review(submission_id):
-    if session.get('role') != 'college':
-        return redirect(url_for('login'))
-
-    conn = get_db()
-
-    if request.method == 'POST':
-        action = request.form.get('action')
-        points_awarded = int(request.form.get('points_awarded', 0))
-
-        if action == 'approve':
-            # Update submission
-            conn.execute('''
-                UPDATE submissions
-                SET status = 'approved', points_awarded = ?,
-                reviewed_date = ?
-                WHERE submission_id = ?
-            ''', (points_awarded,
-                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                  submission_id))
-
-            # Get student id from submission
-            submission = conn.execute(
-                'SELECT student_id FROM submissions WHERE submission_id = ?',
-                (submission_id,)
-            ).fetchone()
-
-            # Add points to student
-            conn.commit()
-            conn.close()
-            update_student_points(submission['student_id'], points_awarded)
-
-        else:
-            conn.execute('''
-                UPDATE submissions
-                SET status = 'rejected', reviewed_date = ?
-                WHERE submission_id = ?
-            ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
-            conn.commit()
-            conn.close()
-
-        return redirect(url_for('college_dashboard'))
-
-    submission = conn.execute('''
-        SELECT s.*, a.activity_name, a.category, 
-               a.max_points_participant, a.max_points_organizer,
-               st.name as student_name
-        FROM submissions s
-        JOIN activities a ON s.activity_id = a.activity_id
-        JOIN students st ON s.student_id = st.student_id
-        WHERE s.submission_id = ?
-    ''', (submission_id,)).fetchone()
-    conn.close()
-
-    return render_template('college_review.html', submission=submission)
-
-# ============================================================
 # WATCHLIST
 # ============================================================
-
-@app.route('/college/watchlist')
+@app.route('/coordinator/watchlist')
 def watchlist():
-    if session.get('role') != 'college':
+    if session.get('role') != 'departmental':
         return redirect(url_for('login'))
 
     conn = get_db()
@@ -460,6 +408,148 @@ def watchlist():
     conn.close()
 
     return render_template('watchlist.html', students=students)
+# ============================================================
+# ADMIN LOGIN
+# ============================================================
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        conn = get_db()
+        admin = conn.execute(
+            'SELECT * FROM admins WHERE email = ? AND password = ?',
+            (email, password)
+        ).fetchone()
+        conn.close()
+
+        if admin:
+            session['user_id'] = admin['admin_id']
+            session['role'] = 'admin'
+            session['name'] = admin['name']
+            return redirect(url_for('admin_dashboard'))
+
+        return render_template('admin_login.html',
+                               error='Invalid email or password')
+
+    return render_template('admin_login.html')
+
+# ============================================================
+# ADMIN DASHBOARD
+# ============================================================
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    students = conn.execute(
+        'SELECT * FROM students ORDER BY name'
+    ).fetchall()
+    mentors = conn.execute(
+        'SELECT * FROM mentors ORDER BY name'
+    ).fetchall()
+    coordinators = conn.execute(
+        'SELECT * FROM coordinators ORDER BY name'
+    ).fetchall()
+    conn.close()
+
+    return render_template('admin_dashboard.html',
+                           students=students,
+                           mentors=mentors,
+                           coordinators=coordinators,
+                           name=session['name'])
+
+# ============================================================
+# ADMIN ADD MENTOR
+# ============================================================
+
+@app.route('/admin/add_mentor', methods=['GET', 'POST'])
+def admin_add_mentor():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        mentor_id = request.form.get('mentor_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        department = request.form.get('department')
+
+        try:
+            conn = get_db()
+            conn.execute('''
+                INSERT INTO mentors
+                (mentor_id, name, email, password, department)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (mentor_id, name, email, password, department))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            return render_template('admin_add_mentor.html',
+                                   error='Mentor ID or email already exists')
+
+    return render_template('admin_add_mentor.html')
+
+# ============================================================
+# ADMIN ADD COORDINATOR
+# ============================================================
+
+@app.route('/admin/add_coordinator', methods=['GET', 'POST'])
+def admin_add_coordinator():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        coordinator_id = request.form.get('coordinator_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        role = request.form.get('role')
+        department = request.form.get('department')
+
+        try:
+            conn = get_db()
+            conn.execute('''
+                INSERT INTO coordinators
+                (coordinator_id, name, email, password, role, department)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (coordinator_id, name, email, password, role, department))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            return render_template('admin_add_coordinator.html',
+                                   error='Coordinator ID or email already exists')
+
+    return render_template('admin_add_coordinator.html')
+
+# ============================================================
+# ADMIN DELETE USER
+# ============================================================
+
+@app.route('/admin/delete/<user_type>/<user_id>')
+def admin_delete(user_type, user_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    if user_type == 'mentor':
+        conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
+    elif user_type == 'coordinator':
+        conn.execute(
+            'DELETE FROM coordinators WHERE coordinator_id = ?', (user_id,)
+        )
+    elif user_type == 'student':
+        conn.execute('DELETE FROM students WHERE student_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('admin_dashboard'))
 
 # ============================================================
 # RUN APP

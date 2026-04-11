@@ -1,104 +1,70 @@
-{% extends "base.html" %}
-{% block title %}Mentor Dashboard — SAP Tracker{% endblock %}
+{% extends 'base.html' %}
 
-{% block nav_links %}
-<a href="/mentor/dashboard" class="active">Dashboard</a>
-{% endblock %}
+{% block title %}Mentor Dashboard{% endblock %}
 
-{% block body %}
-<div class="page fade-up">
-
-  <div class="page-header">
-    <h1>Mentor <span>Dashboard</span></h1>
-    <p>Welcome, {{ name }} — review your students' activity submissions below.</p>
-  </div>
-
-  <!-- Stats -->
-  <div class="stats fade-up fade-up-1">
-    <div class="stat">
-      <div class="stat-value">{{ submissions | length }}</div>
-      <div class="stat-label">Total Submissions</div>
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Faculty Mentor Dashboard</div>
+    <div class="page-subtitle">
+        Welcome, {{ name }}! Review and verify student submissions.
     </div>
-    <div class="stat">
-      <div class="stat-value">{{ submissions | selectattr('status','equalto','pending') | list | length }}</div>
-      <div class="stat-label">Pending Review</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">{{ submissions | selectattr('status','equalto','approved') | list | length }}</div>
-      <div class="stat-label">Approved</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">{{ submissions | selectattr('status','equalto','rejected') | list | length }}</div>
-      <div class="stat-label">Rejected</div>
-    </div>
-  </div>
+</div>
 
-  <!-- Table -->
-  <div class="card fade-up fade-up-2">
-    <div class="card-title"><div class="dot"></div> Pending Reviews</div>
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Pending Submissions</div>
+        <div class="card-subtitle">
+            {{ submissions|length }} submission(s) waiting for your review
+        </div>
+    </div>
 
     {% if submissions %}
-    <div class="table-wrap">
-      <table>
+    <table>
         <thead>
-          <tr>
-            <th>Student</th>
-            <th>Activity</th>
-            <th>Category</th>
-            <th>Role</th>
-            <th>Date</th>
-            <th>Pts Claimed</th>
-            <th>Face Match</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
+            <tr>
+                <th>Student</th>
+                <th>Activity</th>
+                <th>Category</th>
+                <th>Role</th>
+                <th>Points Claimed</th>
+                <th>Submitted</th>
+                <th>Action</th>
+            </tr>
         </thead>
         <tbody>
-          {% for s in submissions %}
-          <tr>
-            <td>
-              <div style="font-weight:600;">{{ s.student_name }}</div>
-              <div style="font-size:.75rem;color:var(--muted);">{{ s.student_id }}</div>
-            </td>
-            <td>{{ s.activity_name }}</td>
-            <td><span class="badge badge-info">{{ s.category }}</span></td>
-            <td>{{ s.role | capitalize }}</td>
-            <td>{{ s.activity_date }}</td>
-            <td><strong>{{ s.points_claimed }}</strong></td>
-            <td>
-              {% if s.face_matched == true %}
-                <span style="color:var(--success);">✅ Yes</span>
-              {% elif s.face_matched == false %}
-                <span style="color:var(--danger);">❌ No</span>
-              {% else %}
-                <span style="color:var(--muted);">—</span>
-              {% endif %}
-            </td>
-            <td>
-              <span class="badge
-                {% if s.status == 'approved' %}badge-approved
-                {% elif s.status == 'rejected' %}badge-rejected
-                {% elif s.status == 'pending' %}badge-pending
-                {% else %}badge-review{% endif %}">
-                {{ s.status }}
-              </span>
-            </td>
-            <td>
-              <a href="/mentor/review/{{ s.submission_id }}" class="btn btn-navy btn-sm">Review</a>
-            </td>
-          </tr>
-          {% endfor %}
+            {% for sub in submissions %}
+            <tr>
+                <td><strong>{{ sub.student_name }}</strong>
+                    <div style="font-size: 12px; color: #718096;">
+                        {{ sub.student_id }}
+                    </div>
+                </td>
+                <td>{{ sub.activity_name }}</td>
+                <td style="font-size: 13px;">{{ sub.category }}</td>
+                <td style="text-transform: capitalize;">{{ sub.role }}</td>
+                <td><strong>{{ sub.points_claimed }} pts</strong></td>
+                <td style="font-size: 13px; color: #718096;">
+                    {{ sub.submitted_date[:10] if sub.submitted_date }}
+                </td>
+                <td>
+                    <a href="/mentor/review/{{ sub.submission_id }}"
+                       class="btn btn-primary"
+                       style="padding: 6px 16px; font-size: 13px;">
+                        Review
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
-      </table>
-    </div>
+    </table>
     {% else %}
-    <div class="empty">
-      <div class="empty-icon">✅</div>
-      <h3>All caught up!</h3>
-      <p>No submissions pending your review.</p>
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
+        <div style="font-weight: 600;">All caught up!</div>
+        <div style="font-size: 14px; margin-top: 8px;">
+            No pending submissions to review.
+        </div>
     </div>
     {% endif %}
-  </div>
-
 </div>
 {% endblock %}

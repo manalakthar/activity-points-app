@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Register{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+    }
+
+    main {
+        width: 100%;
+        max-width: 560px;
+        padding: 24px;
+    }
+
+    .register-card {
+        background: white;
+        border-radius: 20px;
+        padding: 36px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .register-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 4px;
+    }
+
+    .register-subtitle {
+        font-size: 14px;
+        color: #718096;
+        margin-bottom: 28px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .photo-upload {
+        border: 2px dashed #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .photo-upload:hover {
+        border-color: #3182ce;
+        background: #ebf8ff;
+    }
+
+    .photo-upload-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+    }
+
+    .photo-upload-text {
+        font-size: 14px;
+        color: #718096;
+    }
+
+    .photo-upload-text strong {
+        color: #3182ce;
+    }
+
+    .login-link {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 14px;
+        color: #718096;
+    }
+
+    .login-link a {
+        color: #3182ce;
+        font-weight: 600;
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="register-card">
+    <div class="register-title">Create your account</div>
+    <div class="register-subtitle">Register to start tracking your activity points</div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/register" enctype="multipart/form-data">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="name" class="form-control"
+                       placeholder="e.g. Manal Akthar" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">USN</label>
+                <input type="text" name="student_id" class="form-control"
+                       placeholder="e.g. 4SO21CS001" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control"
+                   placeholder="you@sjec.ac.in" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control"
+                   placeholder="Create a password" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Department</label>
+            <select name="department" class="form-control" required>
+                <option value="">Select your department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics & Communication">Electronics & Communication</option>
+                <option value="Electrical Engineering">Electrical Engineering</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Artificial Intelligence">Artificial Intelligence & ML</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Year</label>
+                <select name="year" class="form-control" required>
+                    <option value="">Select year</option>
+                    <option value="1">1st Year</option>
+                    <option value="2">2nd Year</option>
+                    <option value="3">3rd Year</option>
+                    <option value="4">4th Year</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Semester</label>
+                <select name="semester" class="form-control" required>
+                    <option value="">Select semester</option>
+                    <option value="1">Semester 1</option>
+                    <option value="2">Semester 2</option>
+                    <option value="3">Semester 3</option>
+                    <option value="4">Semester 4</option>
+                    <option value="5">Semester 5</option>
+                    <option value="6">Semester 6</option>
+                    <option value="7">Semester 7</option>
+                    <option value="8">Semester 8</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Student Type</label>
+            <select name="student_type" class="form-control" required>
+                <option value="regular">Regular (100 points required)</option>
+                <option value="lateral">Lateral Entry (75 points required)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Face Photo</label>
+            <div class="photo-upload" onclick="document.getElementById('face_photo').click()">
+                <div class="photo-upload-icon">📷</div>
+                <div class="photo-upload-text">
+                    <strong>Click to upload</strong> your face photo<br>
+                    Used for identity verification when submitting certificates<br>
+                    <small>JPG, JPEG or PNG — clear front facing photo</small>
+                </div>
+                <input type="file" id="face_photo" name="face_photo"
+                       accept="image/*" style="display:none"
+                       onchange="updatePhotoLabel(this)">
+            </div>
+            <div id="photo-name" style="font-size:13px; color:#38a169;
+                 margin-top:8px; display:none;"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">
+            Create Account →
+        </button>
+    </form>
+
+    <div class="login-link">
+        Already have an account? <a href="/login">Sign in</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePhotoLabel(input) {
+    const label = document.getElementById('photo-name');
+    if (input.files && input.files[0]) {
+        label.style.display = 'block';
+        label.textContent = '✅ ' + input.files[0].name + ' selected';
+    }
+}
+</script>
+{% endblock %}

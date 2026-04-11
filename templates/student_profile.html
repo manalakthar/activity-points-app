@@ -1,130 +1,145 @@
-{% extends "base.html" %}
-{% block title %}My Profile — SAP Tracker{% endblock %}
+{% extends 'base.html' %}
 
-{% block nav_links %}
-<a href="/student/dashboard">Dashboard</a>
-<a href="/student/profile" class="active">Profile</a>
-<a href="/activities">Activities</a>
-<a href="/student/submit">+ Submit Claim</a>
-{% endblock %}
+{% block title %}My Profile{% endblock %}
 
-{% block body %}
-<div class="page fade-up">
-
-  <div class="page-header">
-    <h1>My <span>Profile</span></h1>
-    <p>Your personal and academic information</p>
-  </div>
-
-  <div class="two-col" style="align-items:start;">
-
-    <!-- Left: Profile card -->
-    <div style="display:flex; flex-direction:column; gap:1.25rem;">
-      <div class="card fade-up fade-up-1" style="text-align:center;">
-        {% if student.face_photo_path %}
-          <img src="/{{ student.face_photo_path }}" class="avatar avatar-lg" style="margin-bottom:1rem;" alt="Profile Photo">
-        {% else %}
-          <div style="width:110px;height:110px;border-radius:50%;background:var(--navy2);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:2.5rem;">🧑‍🎓</div>
-        {% endif %}
-        <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;">{{ student.name }}</h2>
-        <p style="color:var(--muted);font-size:.85rem;margin-top:.3rem;">{{ student.email }}</p>
-        <div style="margin-top:.8rem;">
-          <span class="badge badge-info">{{ student.department }}</span>
-        </div>
-        {% if student.watch_list %}
-        <div class="alert alert-danger" style="margin-top:1rem;margin-bottom:0;text-align:left;">
-          ⚠️ Watchlist — insufficient points
-        </div>
-        {% endif %}
-      </div>
-
-      <div class="card fade-up fade-up-2">
-        <div class="card-title"><div class="dot"></div> Points Overview</div>
-        {% set pct = [(student.total_points / student.points_required * 100) | int, 100] | min %}
-        <div style="display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:.5rem;">
-          <span>{{ student.total_points }} earned</span>
-          <span>{{ student.points_required }} required</span>
-        </div>
-        <div class="progress-wrap">
-          <div class="progress-bar {% if pct >= 100 %}success{% elif pct < 40 %}danger{% endif %}"
-               style="width:{{ pct }}%;"></div>
-        </div>
-        <p style="margin-top:.6rem;font-size:.82rem;color:var(--muted);">
-          {% if pct >= 100 %}
-            ✅ You have met the SAP requirement!
-          {% else %}
-            You need <strong>{{ student.points_required - student.total_points }}</strong> more points.
-          {% endif %}
-        </p>
-      </div>
-    </div>
-
-    <!-- Right: Details + submissions -->
-    <div style="display:flex; flex-direction:column; gap:1.25rem;">
-      <div class="card fade-up fade-up-1">
-        <div class="card-title"><div class="dot"></div> Academic Details</div>
-        <div class="detail-list">
-          <div class="detail-row"><dt>Student ID</dt><dd>{{ student.student_id }}</dd></div>
-          <div class="detail-row"><dt>Department</dt><dd>{{ student.department }}</dd></div>
-          <div class="detail-row"><dt>Year</dt><dd>Year {{ student.year }}</dd></div>
-          <div class="detail-row"><dt>Semester</dt><dd>Semester {{ student.semester }}</dd></div>
-          <div class="detail-row"><dt>Student Type</dt><dd>{{ student.student_type | capitalize }}</dd></div>
-        </div>
-      </div>
-
-      <div class="card fade-up fade-up-2">
-        <div class="card-title" style="justify-content:space-between;">
-          <span style="display:flex;align-items:center;gap:.6rem;"><div class="dot"></div> Submission History</span>
-          <a href="/student/submit" class="btn btn-primary btn-sm">+ New</a>
-        </div>
-        {% if submissions %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Activity</th>
-                <th>Pts Claimed</th>
-                <th>Pts Awarded</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for s in submissions %}
-              <tr>
-                <td>
-                  <div style="font-weight:600;font-size:.875rem;">{{ s.activity_name }}</div>
-                  <div style="font-size:.75rem;color:var(--muted);">{{ s.activity_date }}</div>
-                </td>
-                <td>{{ s.points_claimed }}</td>
-                <td>
-                  {% if s.points_awarded %}
-                    <strong style="color:var(--success);">{{ s.points_awarded }}</strong>
-                  {% else %}—{% endif %}
-                </td>
-                <td>
-                  <span class="badge
-                    {% if s.status == 'approved' %}badge-approved
-                    {% elif s.status == 'rejected' %}badge-rejected
-                    {% elif s.status == 'pending' %}badge-pending
-                    {% else %}badge-review{% endif %}">
-                    {{ s.status }}
-                  </span>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="empty" style="padding:2rem;">
-          <div class="empty-icon">📭</div>
-          <h3>No submissions</h3>
-          <a href="/student/submit" class="btn btn-primary btn-sm" style="margin-top:.75rem;">Submit Now</a>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-  </div>
+{% block content %}
+<div class="page-header">
+    <div class="page-title">My Profile</div>
+    <div class="page-subtitle">Complete activity history and details</div>
 </div>
-{% endblock %}ss
+
+<!-- Profile Card -->
+<div class="card">
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <div style="width: 72px; height: 72px; background: #ebf8ff;
+                    border-radius: 50%; display: flex; align-items: center;
+                    justify-content: center; font-size: 28px; font-weight: 700;
+                    color: #2b6cb0; flex-shrink: 0;">
+            {{ student.name[0].upper() }}
+        </div>
+        <div style="flex: 1;">
+            <div style="font-size: 20px; font-weight: 700;">
+                {{ student.name }}
+            </div>
+            <div style="color: #718096; font-size: 14px; margin-top: 4px;">
+                {{ student.student_id }} — {{ student.department }}
+            </div>
+            <div style="color: #718096; font-size: 14px;">
+                Year {{ student.year }}, Semester {{ student.semester }} —
+                {{ student.student_type|capitalize }} student
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 36px; font-weight: 800; color: #3182ce;">
+                {{ student.total_points }}
+            </div>
+            <div style="font-size: 13px; color: #718096;">
+                of {{ student.points_required }} points
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        {% set percentage = (student.total_points /
+                            student.points_required * 100)|int %}
+        <div class="progress-container">
+            <div class="progress-bar
+                {% if percentage >= 100 %}complete{% endif %}"
+                 style="width: {{ [percentage, 100]|min }}%">
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between;
+                    margin-top: 6px; font-size: 13px; color: #718096;">
+            <span>{{ percentage }}% complete</span>
+            <span>
+                {{ student.points_required - student.total_points }}
+                points remaining
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Full Submission History -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">All Submissions</div>
+        <div class="card-subtitle">
+            Complete history of all activity submissions
+        </div>
+    </div>
+
+    {% if submissions %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Activity</th>
+                <th>Category</th>
+                <th>Role</th>
+                <th>Organized By</th>
+                <th>Date</th>
+                <th>Duration</th>
+                <th>Points</th>
+                <th>Face Verified</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in submissions %}
+            <tr>
+                <td style="color: #718096;">{{ loop.index }}</td>
+                <td><strong>{{ sub.activity_name }}</strong></td>
+                <td style="font-size: 13px;">{{ sub.category }}</td>
+                <td style="text-transform: capitalize;">{{ sub.role }}</td>
+                <td style="font-size: 13px;">{{ sub.organized_by }}</td>
+                <td style="font-size: 13px; color: #718096;">
+                    {{ sub.activity_date }}
+                </td>
+                <td style="font-size: 13px;">{{ sub.duration_hours }}h</td>
+                <td>
+                    {% if sub.status == 'approved' %}
+                        <strong style="color: #38a169;">
+                            +{{ sub.points_awarded }}
+                        </strong>
+                    {% else %}
+                        {{ sub.points_claimed }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.face_matched %}
+                        <span style="color: #38a169;">✅ Yes</span>
+                    {% else %}
+                        <span style="color: #e53e3e;">❌ No</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.status == 'pending' %}
+                        <span class="badge badge-pending">Pending</span>
+                    {% elif sub.status == 'mentor_approved' %}
+                        <span class="badge badge-mentor">
+                            Mentor Approved
+                        </span>
+                    {% elif sub.status == 'coordinator_approved' %}
+                        <span class="badge badge-coordinator">
+                            Coord. Approved
+                        </span>
+                    {% elif sub.status == 'approved' %}
+                        <span class="badge badge-approved">✅ Approved</span>
+                    {% elif sub.status == 'rejected' %}
+                        <span class="badge badge-rejected">❌ Rejected</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <div style="font-size: 40px; margin-bottom: 12px;">📋</div>
+        <div style="font-weight: 600;">No submissions yet</div>
+        <a href="/student/submit" class="btn btn-primary"
+           style="margin-top: 16px;">Submit First Activity</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
