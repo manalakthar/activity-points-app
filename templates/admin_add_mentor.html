@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Mentor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Add Faculty Mentor</div>
+    <div class="page-subtitle">
+        Create a new faculty mentor account
+    </div>
+</div>
+
+<div class="card" style="max-width: 560px;">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/admin/add_mentor">
+        <div class="form-group">
+            <label class="form-label">Mentor ID</label>
+            <input type="text" name="mentor_id" class="form-control"
+                   placeholder="e.g. M001" required>
+            <div style="font-size: 12px; color: #718096; margin-top: 4px;">
+                Choose a unique ID for this mentor
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. Prof. John Smith" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control"
+                   placeholder="faculty@sjec.ac.in" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control"
+                   placeholder="Set a password for this mentor" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Department</label>
+            <select name="department" class="form-control" required>
+                <option value="">Select department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">
+                    Information Technology
+                </option>
+                <option value="Electronics & Communication">
+                    Electronics & Communication
+                </option>
+                <option value="Electrical Engineering">
+                    Electrical Engineering
+                </option>
+                <option value="Mechanical Engineering">
+                    Mechanical Engineering
+                </option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Artificial Intelligence">
+                    Artificial Intelligence & ML
+                </option>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-success">
+                + Add Mentor
+            </button>
+            <a href="/admin/dashboard" class="btn btn-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

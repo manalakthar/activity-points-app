@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Welcome, {{ student.name }}! 👋</div>
+    <div class="page-subtitle">{{ student.department }} —
+        Year {{ student.year }}, Semester {{ student.semester }}</div>
+</div>
+
+{% if student.watch_list %}
+<div class="alert alert-warning">
+    ⚠️ You are on the watch list! You need to earn more points
+    before the end of Semester 6. Please contact your Faculty Mentor.
+</div>
+{% endif %}
+
+<!-- Points Progress -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Activity Points Progress</div>
+        <div class="card-subtitle">
+            Target: {{ student.points_required }} points by end of
+            {% if student.student_type == 'lateral' %}
+                Year 3 (Semester 6)
+            {% else %}
+                Year 4 (Semester 8)
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="display: flex; align-items: center;
+                justify-content: space-between; margin-bottom: 8px;">
+        <span style="font-size: 14px; color: #718096;">Total Points Earned</span>
+        <span style="font-size: 24px; font-weight: 700; color: #1a202c;">
+            {{ student.total_points }} /
+            {{ student.points_required }}
+        </span>
+    </div>
+
+    <div class="progress-container">
+        {% set percentage = (student.total_points / student.points_required * 100)|int %}
+        <div class="progress-bar {% if percentage >= 100 %}complete{% endif %}"
+             style="width: {{ [percentage, 100]|min }}%"></div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between;
+                margin-top: 8px; font-size: 13px; color: #718096;">
+        <span>{{ percentage }}% complete</span>
+        <span>{{ student.points_required - student.total_points }} points remaining</span>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ student.total_points }}</div>
+        <div class="stat-label">Points Earned</div>
+    </div>
+    <div class="stat-card" style="border-left-color: #38a169;">
+        <div class="stat-value">
+            {{ submissions|selectattr('status', 'equalto', 'approved')|list|length }}
+        </div>
+        <div class="stat-label">Approved Activities</div>
+    </div>
+    <div class="stat-card" style="border-left-color: #d69e2e;">
+        <div class="stat-value">
+            {{ submissions|selectattr('status', 'equalto', 'pending')|list|length }}
+        </div>
+        <div class="stat-label">Pending Approval</div>
+    </div>
+    <div class="stat-card" style="border-left-color: #e53e3e;">
+        <div class="stat-value">
+            {{ submissions|selectattr('status', 'equalto', 'rejected')|list|length }}
+        </div>
+        <div class="stat-label">Rejected</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px; margin-bottom: 24px;">
+    <a href="/student/submit" class="btn btn-primary">
+        + Submit Activity
+    </a>
+    <a href="/activities" class="btn btn-outline">
+        Browse Activities
+    </a>
+    <a href="/student/profile" class="btn btn-outline">
+        View Full Profile
+    </a>
+</div>
+
+<!-- Recent Submissions -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Recent Submissions</div>
+        <div class="card-subtitle">Your latest activity submissions</div>
+    </div>
+
+    {% if submissions %}
+    <table>
+        <thead>
+            <tr>
+                <th>Activity</th>
+                <th>Category</th>
+                <th>Role</th>
+                <th>Points</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in submissions[:5] %}
+            <tr>
+                <td><strong>{{ sub.activity_name }}</strong></td>
+                <td>{{ sub.category }}</td>
+                <td style="text-transform: capitalize;">{{ sub.role }}</td>
+                <td>
+                    {% if sub.status == 'approved' %}
+                        <strong style="color: #38a169;">
+                            +{{ sub.points_awarded }}
+                        </strong>
+                    {% else %}
+                        {{ sub.points_claimed }} (claimed)
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.status == 'pending' %}
+                        <span class="badge badge-pending">Pending</span>
+                    {% elif sub.status == 'mentor_approved' %}
+                        <span class="badge badge-mentor">Mentor Approved</span>
+                    {% elif sub.status == 'coordinator_approved' %}
+                        <span class="badge badge-coordinator">
+                            Coordinator Approved
+                        </span>
+                    {% elif sub.status == 'approved' %}
+                        <span class="badge badge-approved">✅ Approved</span>
+                    {% elif sub.status == 'rejected' %}
+                        <span class="badge badge-rejected">❌ Rejected</span>
+                    {% endif %}
+                </td>
+                <td style="color: #718096; font-size: 13px;">
+                    {{ sub.submitted_date[:10] if sub.submitted_date }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <div style="font-size: 40px; margin-bottom: 12px;">📋</div>
+        <div style="font-weight: 600; margin-bottom: 8px;">
+            No submissions yet
+        </div>
+        <div style="font-size: 14px; margin-bottom: 20px;">
+            Start earning points by submitting your first activity!
+        </div>
+        <a href="/student/submit" class="btn btn-primary">
+            Submit Your First Activity
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

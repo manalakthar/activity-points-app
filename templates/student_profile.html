@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">My Profile</div>
+    <div class="page-subtitle">Complete activity history and details</div>
+</div>
+
+<!-- Profile Card -->
+<div class="card">
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <div style="width: 72px; height: 72px; background: #ebf8ff;
+                    border-radius: 50%; display: flex; align-items: center;
+                    justify-content: center; font-size: 28px; font-weight: 700;
+                    color: #2b6cb0; flex-shrink: 0;">
+            {{ student.name[0].upper() }}
+        </div>
+        <div style="flex: 1;">
+            <div style="font-size: 20px; font-weight: 700;">
+                {{ student.name }}
+            </div>
+            <div style="color: #718096; font-size: 14px; margin-top: 4px;">
+                {{ student.student_id }} — {{ student.department }}
+            </div>
+            <div style="color: #718096; font-size: 14px;">
+                Year {{ student.year }}, Semester {{ student.semester }} —
+                {{ student.student_type|capitalize }} student
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 36px; font-weight: 800; color: #3182ce;">
+                {{ student.total_points }}
+            </div>
+            <div style="font-size: 13px; color: #718096;">
+                of {{ student.points_required }} points
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        {% set percentage = (student.total_points /
+                            student.points_required * 100)|int %}
+        <div class="progress-container">
+            <div class="progress-bar
+                {% if percentage >= 100 %}complete{% endif %}"
+                 style="width: {{ [percentage, 100]|min }}%">
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between;
+                    margin-top: 6px; font-size: 13px; color: #718096;">
+            <span>{{ percentage }}% complete</span>
+            <span>
+                {{ student.points_required - student.total_points }}
+                points remaining
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Full Submission History -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">All Submissions</div>
+        <div class="card-subtitle">
+            Complete history of all activity submissions
+        </div>
+    </div>
+
+    {% if submissions %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Activity</th>
+                <th>Category</th>
+                <th>Role</th>
+                <th>Organized By</th>
+                <th>Date</th>
+                <th>Duration</th>
+                <th>Points</th>
+                <th>Face Verified</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in submissions %}
+            <tr>
+                <td style="color: #718096;">{{ loop.index }}</td>
+                <td><strong>{{ sub.activity_name }}</strong></td>
+                <td style="font-size: 13px;">{{ sub.category }}</td>
+                <td style="text-transform: capitalize;">{{ sub.role }}</td>
+                <td style="font-size: 13px;">{{ sub.organized_by }}</td>
+                <td style="font-size: 13px; color: #718096;">
+                    {{ sub.activity_date }}
+                </td>
+                <td style="font-size: 13px;">{{ sub.duration_hours }}h</td>
+                <td>
+                    {% if sub.status == 'approved' %}
+                        <strong style="color: #38a169;">
+                            +{{ sub.points_awarded }}
+                        </strong>
+                    {% else %}
+                        {{ sub.points_claimed }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.face_matched %}
+                        <span style="color: #38a169;">✅ Yes</span>
+                    {% else %}
+                        <span style="color: #e53e3e;">❌ No</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.status == 'pending' %}
+                        <span class="badge badge-pending">Pending</span>
+                    {% elif sub.status == 'mentor_approved' %}
+                        <span class="badge badge-mentor">
+                            Mentor Approved
+                        </span>
+                    {% elif sub.status == 'coordinator_approved' %}
+                        <span class="badge badge-coordinator">
+                            Coord. Approved
+                        </span>
+                    {% elif sub.status == 'approved' %}
+                        <span class="badge badge-approved">✅ Approved</span>
+                    {% elif sub.status == 'rejected' %}
+                        <span class="badge badge-rejected">❌ Rejected</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <div style="font-size: 40px; margin-bottom: 12px;">📋</div>
+        <div style="font-weight: 600;">No submissions yet</div>
+        <a href="/student/submit" class="btn btn-primary"
+           style="margin-top: 16px;">Submit First Activity</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

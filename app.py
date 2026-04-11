@@ -367,8 +367,6 @@ def coordinator_review(submission_id):
 
 @app.route('/college/dashboard')
 def college_dashboard():
-    if session.get('role') != 'college':
-        return redirect(url_for('login'))
 
     submissions = get_pending_submissions_for_college()
 
@@ -460,6 +458,148 @@ def watchlist():
     conn.close()
 
     return render_template('watchlist.html', students=students)
+    # ============================================================
+# ADMIN LOGIN
+# ============================================================
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        conn = get_db()
+        admin = conn.execute(
+            'SELECT * FROM admins WHERE email = ? AND password = ?',
+            (email, password)
+        ).fetchone()
+        conn.close()
+
+        if admin:
+            session['user_id'] = admin['admin_id']
+            session['role'] = 'admin'
+            session['name'] = admin['name']
+            return redirect(url_for('admin_dashboard'))
+
+        return render_template('admin_login.html',
+                               error='Invalid email or password')
+
+    return render_template('admin_login.html')
+
+# ============================================================
+# ADMIN DASHBOARD
+# ============================================================
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    students = conn.execute(
+        'SELECT * FROM students ORDER BY name'
+    ).fetchall()
+    mentors = conn.execute(
+        'SELECT * FROM mentors ORDER BY name'
+    ).fetchall()
+    coordinators = conn.execute(
+        'SELECT * FROM coordinators ORDER BY name'
+    ).fetchall()
+    conn.close()
+
+    return render_template('admin_dashboard.html',
+                           students=students,
+                           mentors=mentors,
+                           coordinators=coordinators,
+                           name=session['name'])
+
+# ============================================================
+# ADMIN ADD MENTOR
+# ============================================================
+
+@app.route('/admin/add_mentor', methods=['GET', 'POST'])
+def admin_add_mentor():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        mentor_id = request.form.get('mentor_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        department = request.form.get('department')
+
+        try:
+            conn = get_db()
+            conn.execute('''
+                INSERT INTO mentors
+                (mentor_id, name, email, password, department)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (mentor_id, name, email, password, department))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            return render_template('admin_add_mentor.html',
+                                   error='Mentor ID or email already exists')
+
+    return render_template('admin_add_mentor.html')
+
+# ============================================================
+# ADMIN ADD COORDINATOR
+# ============================================================
+
+@app.route('/admin/add_coordinator', methods=['GET', 'POST'])
+def admin_add_coordinator():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        coordinator_id = request.form.get('coordinator_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        role = request.form.get('role')
+        department = request.form.get('department')
+
+        try:
+            conn = get_db()
+            conn.execute('''
+                INSERT INTO coordinators
+                (coordinator_id, name, email, password, role, department)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (coordinator_id, name, email, password, role, department))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            return render_template('admin_add_coordinator.html',
+                                   error='Coordinator ID or email already exists')
+
+    return render_template('admin_add_coordinator.html')
+
+# ============================================================
+# ADMIN DELETE USER
+# ============================================================
+
+@app.route('/admin/delete/<user_type>/<user_id>')
+def admin_delete(user_type, user_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    if user_type == 'mentor':
+        conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
+    elif user_type == 'coordinator':
+        conn.execute(
+            'DELETE FROM coordinators WHERE coordinator_id = ?', (user_id,)
+        )
+    elif user_type == 'student':
+        conn.execute('DELETE FROM students WHERE student_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('admin_dashboard'))
 
 # ============================================================
 # RUN APP

@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Activity{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Submit Activity Claim</div>
+    <div class="page-subtitle">
+        Fill in the details and upload your certificate
+    </div>
+</div>
+
+<div class="card">
+    <form method="POST" action="/student/submit"
+          enctype="multipart/form-data">
+
+        <div class="form-group">
+            <label class="form-label">Activity</label>
+            <select name="activity_id" class="form-control"
+                    required onchange="updatePoints(this)">
+                <option value="">Select an activity</option>
+                {% set categories = activities|groupby('category') %}
+                {% for category, items in categories %}
+                <optgroup label="{{ category }}">
+                    {% for activity in items %}
+                    <option value="{{ activity.activity_id }}"
+                            data-participant="{{ activity.max_points_participant }}"
+                            data-organizer="{{ activity.max_points_organizer }}">
+                        {{ activity.activity_name }}
+                    </option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Your Role</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr;
+                        gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 10px;
+                              padding: 14px 16px; border: 2px solid #e2e8f0;
+                              border-radius: 10px; cursor: pointer;
+                              transition: all 0.2s;">
+                    <input type="radio" name="role" value="participant"
+                           checked onchange="updatePoints()">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">
+                            Participant
+                        </div>
+                        <div id="participant-pts"
+                             style="font-size: 12px; color: #718096;">
+                            Select activity to see points
+                        </div>
+                    </div>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px;
+                              padding: 14px 16px; border: 2px solid #e2e8f0;
+                              border-radius: 10px; cursor: pointer;
+                              transition: all 0.2s;">
+                    <input type="radio" name="role" value="organizer"
+                           onchange="updatePoints()">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">
+                            Organizer
+                        </div>
+                        <div id="organizer-pts"
+                             style="font-size: 12px; color: #718096;">
+                            Select activity to see points
+                        </div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr;
+                    gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Organized By</label>
+                <input type="text" name="organized_by" class="form-control"
+                       placeholder="e.g. SJEC NSS, IEEE" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date of Activity</label>
+                <input type="date" name="activity_date"
+                       class="form-control" required>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr;
+                    gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Duration (hours)</label>
+                <input type="number" name="duration_hours"
+                       class="form-control" min="1" placeholder="e.g. 6"
+                       required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Points Claimed</label>
+                <input type="number" name="points_claimed"
+                       id="points_claimed" class="form-control"
+                       placeholder="Auto-filled" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Upload Certificate</label>
+            <div style="border: 2px dashed #e2e8f0; border-radius: 12px;
+                        padding: 24px; text-align: center; cursor: pointer;
+                        transition: all 0.2s;"
+                 onclick="document.getElementById('certificate').click()">
+                <div style="font-size: 32px; margin-bottom: 8px;">📎</div>
+                <div style="font-size: 14px; color: #718096;">
+                    <strong style="color: #3182ce;">Click to upload</strong>
+                    certificate or proof of participation<br>
+                    <small>JPG, PNG or PDF supported</small>
+                </div>
+                <input type="file" id="certificate" name="certificate"
+                       accept="image/*,.pdf" style="display:none"
+                       onchange="updateFileLabel(this)">
+            </div>
+            <div id="file-name" style="font-size:13px; color:#38a169;
+                 margin-top:8px; display:none;"></div>
+        </div>
+
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 10px;
+                          cursor: pointer;">
+                <input type="checkbox" name="protsaha_updated"
+                       style="width: 18px; height: 18px;">
+                <span style="font-size: 14px; color: #4a5568;">
+                    I confirm that I have updated my Protsaha book
+                    with this activity
+                </span>
+            </label>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">
+                Submit Claim →
+            </button>
+            <a href="/student/dashboard" class="btn btn-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePoints(select) {
+    const activitySelect = document.querySelector('[name="activity_id"]');
+    const selected = activitySelect.options[activitySelect.selectedIndex];
+    const participantPts = selected.dataset.participant;
+    const organizerPts = selected.dataset.organizer;
+
+    if (participantPts) {
+        document.getElementById('participant-pts').textContent =
+            participantPts + ' points';
+        document.getElementById('organizer-pts').textContent =
+            organizerPts + ' points';
+
+        const role = document.querySelector('[name="role"]:checked').value;
+        document.getElementById('points_claimed').value =
+            role === 'participant' ? participantPts : organizerPts;
+    }
+}
+
+function updateFileLabel(input) {
+    const label = document.getElementById('file-name');
+    if (input.files && input.files[0]) {
+        label.style.display = 'block';
+        label.textContent = '✅ ' + input.files[0].name + ' selected';
+    }
+}
+
+document.querySelectorAll('[name="role"]').forEach(radio => {
+    radio.addEventListener('change', updatePoints);
+});
+</script>
+{% endblock %}
