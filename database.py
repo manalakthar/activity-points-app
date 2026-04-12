@@ -64,6 +64,19 @@ def init_db():
         )
     ''')
 
+    # Mentor assignments table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS mentor_assignments (
+            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            mentor_id TEXT NOT NULL,
+            semester INTEGER NOT NULL,
+            academic_year TEXT NOT NULL,
+            FOREIGN KEY (student_id) REFERENCES students (student_id),
+            FOREIGN KEY (mentor_id) REFERENCES mentors (mentor_id)
+        )
+    ''')
+
     # Add default admin account
     try:
         cursor.execute('''
@@ -267,6 +280,51 @@ def get_all_activities():
     ).fetchall()
     conn.close()
     return activities
+
+def get_mentor_for_student(student_id, semester):
+    """
+    Get the assigned mentor for a student in a specific semester.
+    Returns mentor_id or None if no assignment found.
+    """
+    conn = get_db()
+    assignment = conn.execute('''
+        SELECT mentor_id FROM mentor_assignments
+        WHERE student_id = ? AND semester = ?
+        ORDER BY assignment_id DESC
+        LIMIT 1
+    ''', (student_id, semester)).fetchone()
+    conn.close()
+    return assignment['mentor_id'] if assignment else None
+
+
+def get_all_assignments():
+    """Get all mentor assignments with student and mentor names."""
+    conn = get_db()
+    assignments = conn.execute('''
+        SELECT ma.*, s.name as student_name,
+               m.name as mentor_name,
+               s.department, s.year
+        FROM mentor_assignments ma
+        JOIN students s ON ma.student_id = s.student_id
+        JOIN mentors m ON ma.mentor_id = m.mentor_id
+        ORDER BY ma.semester DESC, s.name
+    ''').fetchall()
+    conn.close()
+    return assignments
+
+
+def get_assignments_for_student(student_id):
+    """Get all mentor assignments for a specific student."""
+    conn = get_db()
+    assignments = conn.execute('''
+        SELECT ma.*, m.name as mentor_name
+        FROM mentor_assignments ma
+        JOIN mentors m ON ma.mentor_id = m.mentor_id
+        WHERE ma.student_id = ?
+        ORDER BY ma.semester
+    ''', (student_id,)).fetchall()
+    conn.close()
+    return assignments
 
 if __name__ == '__main__':
     init_db()

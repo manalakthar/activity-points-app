@@ -6,8 +6,8 @@ from database import (
     update_student_points, get_submissions_by_student,
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
-    get_pending_submissions_for_college,
-    get_all_activities
+    get_all_activities, get_mentor_for_student,
+    get_all_assignments
 )
 
 app = Flask(__name__)
@@ -236,18 +236,23 @@ def submit_claim():
             except Exception as e:
              print(f"Face recognition error: {e}")
 
-        # Get mentor for this student
+        # Get assigned mentor for this student's current semester
         student = get_student(session['user_id'])
+        mentor_id = get_mentor_for_student(
+            session['user_id'],
+            student['semester']
+        )
+
+        # If no assignment found, fall back to department mentor
+        if not mentor_id:
+            conn_temp = get_db()
+            mentor = conn_temp.execute(
+                'SELECT mentor_id FROM mentors WHERE department = ?',
+                (student['department'],)
+            ).fetchone()
+            conn_temp.close()
+            mentor_id = mentor['mentor_id'] if mentor else None
         conn = get_db()
-
-        # Find a mentor from the same department
-        mentor = conn.execute(
-            'SELECT mentor_id FROM mentors WHERE department = ?',
-            (student['department'],)
-        ).fetchone()
-
-        mentor_id = mentor['mentor_id'] if mentor else None
-
         conn.execute('''
             INSERT INTO submissions
             (student_id, activity_id, role, organized_by, activity_date,
@@ -550,6 +555,90 @@ def admin_delete(user_type, user_id):
     conn.close()
 
     return redirect(url_for('admin_dashboard'))
+
+# ============================================================
+# ADMIN — MENTOR ASSIGNMENTS
+# ============================================================
+
+@app.route('/admin/assignments')
+def admin_assignments():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    assignments = get_all_assignments()
+
+    conn = get_db()
+    students = conn.execute(
+        'SELECT * FROM students ORDER BY name'
+    ).fetchall()
+    mentors = conn.execute(
+        'SELECT * FROM mentors ORDER BY name'
+    ).fetchall()
+    conn.close()
+
+    return render_template('admin_assignments.html',
+                           assignments=assignments,
+                           students=students,
+                           mentors=mentors)
+
+
+@app.route('/admin/assign_mentor', methods=['POST'])
+def assign_mentor():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    student_id = request.form.get('student_id')
+    mentor_id = request.form.get('mentor_id')
+    semester = request.form.get('semester')
+    academic_year = request.form.get('academic_year')
+
+    try:
+        conn = get_db()
+        # Check if assignment already exists for this
+        # student + semester
+        existing = conn.execute('''
+            SELECT assignment_id FROM mentor_assignments
+            WHERE student_id = ? AND semester = ?
+        ''', (student_id, semester)).fetchone()
+
+        if existing:
+            # Update existing assignment
+            conn.execute('''
+                UPDATE mentor_assignments
+                SET mentor_id = ?, academic_year = ?
+                WHERE student_id = ? AND semester = ?
+            ''', (mentor_id, academic_year, student_id, semester))
+        else:
+            # Create new assignment
+            conn.execute('''
+                INSERT INTO mentor_assignments
+                (student_id, mentor_id, semester, academic_year)
+                VALUES (?, ?, ?, ?)
+            ''', (student_id, mentor_id, semester, academic_year))
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print(f"Assignment error: {e}")
+
+    return redirect(url_for('admin_assignments'))
+
+
+@app.route('/admin/delete_assignment/<int:assignment_id>')
+def delete_assignment(assignment_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute(
+        'DELETE FROM mentor_assignments WHERE assignment_id = ?',
+        (assignment_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('admin_assignments'))
 
 # ============================================================
 # RUN APP
