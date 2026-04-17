@@ -118,10 +118,18 @@ def init_db():
             mentor_id TEXT,
             submitted_date TEXT,
             reviewed_date TEXT,
+            rejection_note TEXT,
             FOREIGN KEY (student_id) REFERENCES students (student_id),
             FOREIGN KEY (activity_id) REFERENCES activities (activity_id)
         )
     ''')
+    # Add rejection_note column if it doesn't exist
+    try:
+        cursor.execute('''
+            ALTER TABLE submissions ADD COLUMN rejection_note TEXT
+        ''')
+    except:
+        pass  # Column already exists
 
     # Pre-fill activities table with all activities from the policy
     cursor.execute("SELECT COUNT(*) FROM activities")

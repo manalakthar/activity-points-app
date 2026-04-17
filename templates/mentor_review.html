@@ -187,37 +187,63 @@
             {% endif %}
 
             <!-- Review Form -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Your Review</div>
-                </div>
-                <form method="POST"
-                      action="/mentor/review/{{ submission.submission_id }}">
-                    <div class="form-group">
-                        <label class="form-label">Points to Award</label>
-                        <input type="number" name="points_awarded"
-                               class="form-control"
-                               min="0"
-                               max="{{ submission.points_claimed }}"
-                               value="{{ submission.points_awarded or
-                                        submission.points_claimed }}"
-                               required>
-                    </div>
-                    <div class="review-action-bar">
-                        <button type="submit" name="action"
-                                value="approve" class="btn btn-success">
-                            ✅ Approve & Forward to Coordinator
-                        </button>
-                        <button type="submit" name="action"
-                                value="reject" class="btn btn-danger">
-                            ❌ Reject
-                        </button>
-                        <a href="/mentor/dashboard" class="btn btn-outline">
-                            Cancel
-                        </a>
-                    </div>
-                </form>
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Your Review</div>
+    </div>
+    <form method="POST" id="reviewForm"
+          action="/mentor/review/{{ submission.submission_id }}">
+
+        <!-- Hidden action field -->
+        <input type="hidden" name="action"
+               id="form_action" value="approve">
+
+        <div class="form-group">
+            <label class="form-label">Points to Award</label>
+            <input type="number" name="points_awarded"
+                   class="form-control"
+                   min="0"
+                   max="{{ submission.points_claimed }}"
+                   value="{{ submission.points_awarded or
+                            submission.points_claimed }}"
+                   required>
+        </div>
+
+        <!-- Rejection note -->
+        <div class="form-group" id="rejection-note-group"
+             style="display:none;">
+            <label class="form-label" style="color:#e53e3e;">
+                Rejection Reason ✱
+            </label>
+            <textarea id="rejection_note_input"
+                      name="rejection_note"
+                      class="form-control"
+                      rows="3"
+                      placeholder="Explain why this submission is being rejected. The student will see this reason."
+                      style="resize:vertical;"></textarea>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                This note will be visible to the student on
+                their dashboard
             </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:20px;
+                    padding-top:20px; border-top:1px solid #e2e8f0;">
+            <button type="submit" class="btn btn-success"
+                    onclick="document.getElementById(
+                        'form_action').value='approve'">
+                ✅ Approve & Forward to Coordinator
+            </button>
+            <button type="button" class="btn btn-danger"
+                    onclick="showRejectionNote(event)">
+                ❌ Reject
+            </button>
+            <a href="/mentor/dashboard" class="btn btn-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
 
         </div>
 
@@ -260,4 +286,41 @@
 
     </div>
 </div>
+{% block extra_js %}
+<script>
+let rejectionReady = false;
+
+function showRejectionNote(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!rejectionReady) {
+        // First click — show note field
+        const noteGroup = document.getElementById('rejection-note-group');
+        noteGroup.style.display = 'block';
+        noteGroup.querySelector('textarea').focus();
+        event.target.innerHTML = '❌ Confirm Rejection';
+        rejectionReady = true;
+    } else {
+        // Second click — validate and submit
+        const textarea = document.getElementById('rejection_note_input');
+
+        if (!textarea.value.trim()) {
+            textarea.style.border = '2px solid #e53e3e';
+            textarea.focus();
+            return;
+        }
+
+        // Set the action to reject and submit
+        document.getElementById('form_action').value = 'reject';
+        document.getElementById('reviewForm').submit();
+    }
+}
+
+function hideRejectionNote() {
+    document.getElementById('rejection-note-group').style.display = 'none';
+    rejectionReady = false;
+}
+</script>
+{% endblock %}
 {% endblock %}

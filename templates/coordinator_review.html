@@ -161,52 +161,72 @@
         </div>
         {% endif %}
 
-        <!-- Final Decision Form -->
         <div class="card">
-            <div class="card-header">
-                <div class="card-title">Final Decision</div>
-                <div class="card-subtitle">
-                    Points awarded here are directly added to
-                    the student's profile
-                </div>
-            </div>
-            <form method="POST"
-                  action="/coordinator/review/{{ submission.submission_id }}">
-                <div class="form-group">
-                    <label class="form-label">Points to Award</label>
-                    <input type="number" name="points_awarded"
-                           class="form-control"
-                           min="0"
-                           max="{{ submission.max_points_organizer }}"
-                           value="{{ submission.points_claimed }}"
-                           required>
-                    <div style="font-size:12px; color:#718096; margin-top:4px;">
-                        Maximum allowed:
-                        {% if submission.role == 'organizer' %}
-                            {{ submission.max_points_organizer }} pts
-                        {% else %}
-                            {{ submission.max_points_participant }} pts
-                        {% endif %}
-                    </div>
-                </div>
+    <div class="card-header">
+        <div class="card-title">Final Decision</div>
+        <div class="card-subtitle">
+            Points awarded here are directly added to
+            the student's profile
+        </div>
+    </div>
+    <form method="POST" id="reviewForm"
+          action="/coordinator/review/{{ submission.submission_id }}">
 
-                <div style="display:flex; gap:12px; margin-top:20px;
-                            padding-top:20px; border-top:1px solid #e2e8f0;">
-                    <button type="submit" name="action"
-                            value="approve" class="btn btn-success">
-                        ✅ Final Approve & Award Points
-                    </button>
-                    <button type="submit" name="action"
-                            value="reject" class="btn btn-danger">
-                        ❌ Reject
-                    </button>
-                    <a href="/coordinator/dashboard"
-                       class="btn btn-outline">Back</a>
-                </div>
-            </form>
+        <!-- Hidden action field -->
+        <input type="hidden" name="action"
+               id="form_action" value="approve">
+
+        <div class="form-group">
+            <label class="form-label">Points to Award</label>
+            <input type="number" name="points_awarded"
+                   class="form-control"
+                   min="0"
+                   max="{{ submission.max_points_organizer }}"
+                   value="{{ submission.points_claimed }}"
+                   required>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                Maximum allowed:
+                {% if submission.role == 'organizer' %}
+                    {{ submission.max_points_organizer }} pts
+                {% else %}
+                    {{ submission.max_points_participant }} pts
+                {% endif %}
+            </div>
         </div>
 
-    </div>
+        <!-- Rejection note -->
+        <div class="form-group" id="rejection-note-group"
+             style="display:none;">
+            <label class="form-label" style="color:#e53e3e;">
+                Rejection Reason ✱
+            </label>
+            <textarea id="rejection_note_input"
+                      name="rejection_note"
+                      class="form-control"
+                      rows="3"
+                      placeholder="Explain why this submission is being rejected. The student will see this reason."
+                      style="resize:vertical;"></textarea>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                This note will be visible to the student
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:20px;
+                    padding-top:20px; border-top:1px solid #e2e8f0;">
+            <button type="submit" class="btn btn-success"
+                    onclick="document.getElementById(
+                        'form_action').value='approve'">
+                ✅ Final Approve & Award Points
+            </button>
+            <button type="button" class="btn btn-danger"
+                    onclick="showRejectionNote(event)">
+                ❌ Reject
+            </button>
+            <a href="/coordinator/dashboard"
+               class="btn btn-outline">Back</a>
+        </div>
+    </form>
+</div>
 
     <!-- Right: Certificate -->
     <div>
@@ -245,4 +265,36 @@
     </div>
 
 </div>
+{% block extra_js %}
+<script>
+let rejectionReady = false;
+
+function showRejectionNote(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!rejectionReady) {
+        const noteGroup = document.getElementById('rejection-note-group');
+        noteGroup.style.display = 'block';
+        noteGroup.querySelector('textarea').focus();
+        event.target.innerHTML = '❌ Confirm Rejection';
+        rejectionReady = true;
+    } else {
+        const textarea = document.getElementById('rejection_note_input');
+        if (!textarea.value.trim()) {
+            textarea.style.border = '2px solid #e53e3e';
+            textarea.focus();
+            return;
+        }
+        document.getElementById('form_action').value = 'reject';
+        document.getElementById('reviewForm').submit();
+    }
+}
+
+function hideRejectionNote() {
+    document.getElementById('rejection-note-group').style.display = 'none';
+    rejectionReady = false;
+}
+</script>
+{% endblock %}
 {% endblock %}

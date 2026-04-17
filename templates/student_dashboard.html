@@ -108,6 +108,7 @@
                 <th>Role</th>
                 <th>Points</th>
                 <th>Status</th>
+                <th>Note</th>
                 <th>Date</th>
             </tr>
         </thead>
@@ -139,6 +140,18 @@
                         <span class="badge badge-approved">✅ Approved</span>
                     {% elif sub.status == 'rejected' %}
                         <span class="badge badge-rejected">❌ Rejected</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:13px; max-width:200px;">
+                    {% if sub.rejection_note %}
+                        <span style="color:#e53e3e;">
+                            ⚠️ {{ sub.rejection_note[:30] }}
+                            {% if sub.rejection_note|length > 30 %}
+                                ...
+                            {% endif %}
+                        </span>
+                    {% else %}
+                        <span style="color:#718096;">—</span>
                     {% endif %}
                 </td>
                 <td style="color: #718096; font-size: 13px;">
