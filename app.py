@@ -772,5 +772,69 @@ def bulk_assign_save():
 # RUN APP
 # ============================================================
 
+@app.route('/notifications')
+def get_notifications():
+    if not session.get('user_id'):
+        return jsonify([])
+
+    conn = get_db()
+    notifications = []
+
+    if session.get('role') == 'student':
+        # Notify student about reviewed submissions
+        reviewed = conn.execute('''
+            SELECT s.submission_id, a.activity_name, s.status, s.points_awarded
+            FROM submissions s
+            JOIN activities a ON s.activity_id = a.activity_id
+            WHERE s.student_id = ?
+            AND s.status IN ('approved', 'rejected', 'mentor_approved')
+        ''', (session['user_id'],)).fetchall()
+
+        for r in reviewed:
+            if r['status'] == 'approved':
+                notifications.append({
+                    'message': f"✅ Your claim for '{r['activity_name']}' was approved! {r['points_awarded']} pts awarded.",
+                    'type': 'success'
+                })
+            elif r['status'] == 'rejected':
+                notifications.append({
+                    'message': f"❌ Your claim for '{r['activity_name']}' was rejected.",
+                    'type': 'error'
+                })
+            elif r['status'] == 'mentor_approved':
+                notifications.append({
+                    'message': f"🔄 Your claim for '{r['activity_name']}' is under coordinator review.",
+                    'type': 'info'
+                })
+
+    elif session.get('role') == 'mentor':
+        # Notify mentor about pending submissions
+        pending = conn.execute('''
+            SELECT COUNT(*) as count FROM submissions
+            WHERE mentor_id = ? AND status = 'pending'
+        ''', (session['user_id'],)).fetchone()
+
+        if pending['count'] > 0:
+            notifications.append({
+                'message': f"📋 You have {pending['count']} pending submission(s) to review.",
+                'type': 'warning'
+            })
+
+    elif session.get('role') == 'departmental':
+        # Notify coordinator about pending submissions
+        pending = conn.execute('''
+            SELECT COUNT(*) as count FROM submissions
+            WHERE status = 'mentor_approved'
+        ''').fetchone()
+
+        if pending['count'] > 0:
+            notifications.append({
+                'message': f"📋 {pending['count']} submission(s) are waiting for your review.",
+                'type': 'warning'
+            })
+
+    conn.close()
+    return jsonify(notifications)
+
 if __name__ == '__main__':
     app.run(debug=True)

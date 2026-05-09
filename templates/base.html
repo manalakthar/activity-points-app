@@ -383,6 +383,57 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
+
+        /* Notification Bell */
+        .notif-bell {
+            position: relative;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            color: #bee3f8;
+            font-size: 20px;
+            transition: background 0.2s;
+        }
+        .notif-bell:hover { background: rgba(255,255,255,0.1); }
+        .notif-badge {
+            position: absolute;
+            top: 4px; right: 4px;
+            width: 8px; height: 8px;
+            background: #e53e3e;
+            border-radius: 50%;
+            display: none;
+        }
+
+        /* Notification Dropdown */
+        .notif-dropdown {
+            position: absolute;
+            top: 56px; right: 80px;
+            width: 340px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            z-index: 999;
+            display: none;
+            overflow: hidden;
+        }
+        .notif-header {
+            padding: 14px 18px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1a202c;
+        }
+        .notif-item {
+            padding: 12px 18px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f4f8;
+            line-height: 1.5;
+        }
+        .notif-item.success { border-left: 4px solid #38a169; }
+        .notif-item.error   { border-left: 4px solid #e53e3e; }
+        .notif-item.warning { border-left: 4px solid #d69e2e; }
+        .notif-item.info    { border-left: 4px solid #3182ce; }
+        .notif-empty { padding: 24px; text-align: center; color: #a0aec0; font-size: 13px; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -399,6 +450,17 @@
     </a>
     <div class="nav-links">
         <span class="nav-link">👋 {{ session.get('name') }}</span>
+        <!-- Notification Bell -->
+        <div class="notif-bell" onclick="toggleNotif()" id="notif-bell">
+            🔔
+            <div class="notif-badge" id="notif-badge"></div>
+        </div>
+
+        <!-- Notification Dropdown -->
+        <div class="notif-dropdown" id="notif-dropdown">
+            <div class="notif-header">🔔 Notifications</div>
+            <div id="notif-list"><div class="notif-empty">Loading...</div></div>
+        </div>
         <a href="/logout" class="nav-link logout">Logout</a>
     </div>
 </nav>
@@ -407,6 +469,43 @@
 <main>
     {% block content %}{% endblock %}
 </main>
+
+<script>
+  function toggleNotif() {
+      const dropdown = document.getElementById('notif-dropdown');
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+      loadNotifications();
+  }
+
+  function loadNotifications() {
+      fetch('/notifications')
+          .then(res => res.json())
+          .then(data => {
+              const list = document.getElementById('notif-list');
+              const badge = document.getElementById('notif-badge');
+
+              if (data.length === 0) {
+                  list.innerHTML = '<div class="notif-empty">No new notifications</div>';
+                  badge.style.display = 'none';
+              } else {
+                  badge.style.display = 'block';
+                  list.innerHTML = data.map(n => `
+                      <div class="notif-item ${n.type}">${n.message}</div>
+                  `).join('');
+              }
+          });
+  }
+
+  // Auto load on page open
+  loadNotifications();
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+      if (!document.getElementById('notif-bell').contains(e.target)) {
+          document.getElementById('notif-dropdown').style.display = 'none';
+      }
+  });
+</script>
 
 {% block extra_js %}{% endblock %}
 </body>
