@@ -491,7 +491,10 @@
 
 <nav>
     <a href="/" class="nav-brand">
-        <div class="nav-logo">SAP</div>
+        <img src="{{ url_for('static', filename='logo.png') }}" 
+             onerror="this.style.display='none'; document.getElementById('nav-fallback').style.display='flex';"
+             alt="SJEC Logo" style="height: 40px; width: auto; object-fit: contain;">
+        <div id="nav-fallback" class="nav-logo" style="display: none;">SAP</div>
         <div>
             <div class="nav-title">Activity Points Tracker</div>
             <div class="nav-subtitle">St Joseph Engineering College</div>

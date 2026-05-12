@@ -95,6 +95,14 @@
 {% endblock %}
 
 {% block content %}
+<div style="text-align: center; margin-bottom: 32px;">
+    <img src="{{ url_for('static', filename='logo.png') }}" 
+         onerror="this.style.display='none'; document.getElementById('reg-fallback').style.display='flex';"
+         alt="SJEC Logo" style="height: 60px; width: auto; margin: 0 auto;">
+    <div id="reg-fallback" class="nav-logo" style="display: none; margin: 0 auto; width: 50px; height: 50px;">SAP</div>
+    <h1 style="color: white; font-size: 20px; font-weight: 700; margin-top: 12px;">Activity Points Tracker</h1>
+</div>
+
 <div class="register-card">
     <div class="register-title">Create your account</div>
     <div class="register-subtitle">Register to start tracking your activity points</div>
