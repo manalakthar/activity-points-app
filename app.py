@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
 from datetime import datetime
 import os
 from database import (
@@ -6,8 +6,8 @@ from database import (
     update_student_points, get_submissions_by_student,
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
-    get_pending_submissions_for_college,
-    get_all_activities
+    get_all_activities, get_mentor_for_student,
+    get_all_assignments
 )
 
 app = Flask(__name__)
@@ -18,6 +18,10 @@ UPLOAD_FOLDER = 'uploads'
 KNOWN_FACES_DIR = 'known_faces'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # Initialize database when app starts
 init_db()
@@ -232,18 +236,23 @@ def submit_claim():
             except Exception as e:
              print(f"Face recognition error: {e}")
 
-        # Get mentor for this student
+        # Get assigned mentor for this student's current semester
         student = get_student(session['user_id'])
+        mentor_id = get_mentor_for_student(
+            session['user_id'],
+            student['semester']
+        )
+
+        # If no assignment found, fall back to department mentor
+        if not mentor_id:
+            conn_temp = get_db()
+            mentor = conn_temp.execute(
+                'SELECT mentor_id FROM mentors WHERE department = ?',
+                (student['department'],)
+            ).fetchone()
+            conn_temp.close()
+            mentor_id = mentor['mentor_id'] if mentor else None
         conn = get_db()
-
-        # Find a mentor from the same department
-        mentor = conn.execute(
-            'SELECT mentor_id FROM mentors WHERE department = ?',
-            (student['department'],)
-        ).fetchone()
-
-        mentor_id = mentor['mentor_id'] if mentor else None
-
         conn.execute('''
             INSERT INTO submissions
             (student_id, activity_id, role, organized_by, activity_date,
@@ -290,13 +299,17 @@ def mentor_review(submission_id):
 
     if request.method == 'POST':
         action = request.form.get('action')
+        rejection_note = request.form.get('rejection_note', '')
         status = 'mentor_approved' if action == 'approve' else 'rejected'
 
         conn.execute('''
             UPDATE submissions
-            SET status = ?, reviewed_date = ?
+            SET status = ?, reviewed_date = ?,
+            rejection_note = ?
             WHERE submission_id = ?
-        ''', (status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
+        ''', (status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              rejection_note if action == 'reject' else None,
+              submission_id))
         conn.commit()
         conn.close()
         return redirect(url_for('mentor_dashboard'))
@@ -339,19 +352,48 @@ def coordinator_review(submission_id):
 
     if request.method == 'POST':
         action = request.form.get('action')
-        status = 'coordinator_approved' if action == 'approve' else 'rejected'
+        points_awarded = int(request.form.get('points_awarded', 0))
+        rejection_note = request.form.get('rejection_note', '')
 
-        conn.execute('''
-            UPDATE submissions
-            SET status = ?, reviewed_date = ?
-            WHERE submission_id = ?
-        ''', (status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
-        conn.commit()
-        conn.close()
+        if action == 'approve':
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'approved', points_awarded = ?,
+                reviewed_date = ?, rejection_note = NULL
+                WHERE submission_id = ?
+            ''', (points_awarded,
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  submission_id))
+
+            submission = conn.execute(
+                'SELECT student_id FROM submissions '
+                'WHERE submission_id = ?',
+                (submission_id,)
+            ).fetchone()
+
+            conn.commit()
+            conn.close()
+            update_student_points(
+                submission['student_id'], points_awarded
+            )
+
+        else:
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'rejected', reviewed_date = ?,
+                rejection_note = ?
+                WHERE submission_id = ?
+            ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  rejection_note, submission_id))
+            conn.commit()
+            conn.close()
+
         return redirect(url_for('coordinator_dashboard'))
 
     submission = conn.execute('''
-        SELECT s.*, a.activity_name, a.category, st.name as student_name
+        SELECT s.*, a.activity_name, a.category,
+               a.max_points_participant, a.max_points_organizer,
+               st.name as student_name
         FROM submissions s
         JOIN activities a ON s.activity_id = a.activity_id
         JOIN students st ON s.student_id = st.student_id
@@ -445,10 +487,9 @@ def college_review(submission_id):
 # ============================================================
 # WATCHLIST
 # ============================================================
-
-@app.route('/college/watchlist')
+@app.route('/coordinator/watchlist')
 def watchlist():
-    if session.get('role') != 'college':
+    if session.get('role') != 'departmental':
         return redirect(url_for('login'))
 
     conn = get_db()
@@ -458,7 +499,9 @@ def watchlist():
     conn.close()
 
     return render_template('watchlist.html', students=students)
+
     # ============================================================
+# ============================================================
 # ADMIN LOGIN
 # ============================================================
 
@@ -586,7 +629,6 @@ def admin_add_coordinator():
 def admin_delete(user_type, user_id):
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
-
     conn = get_db()
     if user_type == 'mentor':
         conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
@@ -600,7 +642,212 @@ def admin_delete(user_type, user_id):
     conn.close()
 
     return redirect(url_for('admin_dashboard'))
+# ============================================================
+# ADMIN — MENTOR ASSIGNMENTS
+# ============================================================
 
+@app.route('/admin/assignments')
+def admin_assignments():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    assignments = get_all_assignments()
+
+    conn = get_db()
+    students = conn.execute(
+        'SELECT * FROM students ORDER BY name'
+    ).fetchall()
+    mentors = conn.execute(
+        'SELECT * FROM mentors ORDER BY name'
+    ).fetchall()
+    conn.close()
+
+    return render_template('admin_assignments.html',
+                           assignments=assignments,
+                           students=students,
+                           mentors=mentors)
+
+
+@app.route('/admin/assign_mentor', methods=['POST'])
+def assign_mentor():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    student_id = request.form.get('student_id')
+    mentor_id = request.form.get('mentor_id')
+    semester = request.form.get('semester')
+    academic_year = request.form.get('academic_year')
+
+    try:
+        conn = get_db()
+        # Check if assignment already exists for this
+        # student + semester
+        existing = conn.execute('''
+            SELECT assignment_id FROM mentor_assignments
+            WHERE student_id = ? AND semester = ?
+        ''', (student_id, semester)).fetchone()
+
+        if existing:
+            # Update existing assignment
+            conn.execute('''
+                UPDATE mentor_assignments
+                SET mentor_id = ?, academic_year = ?
+                WHERE student_id = ? AND semester = ?
+            ''', (mentor_id, academic_year, student_id, semester))
+        else:
+            # Create new assignment
+            conn.execute('''
+                INSERT INTO mentor_assignments
+                (student_id, mentor_id, semester, academic_year)
+                VALUES (?, ?, ?, ?)
+            ''', (student_id, mentor_id, semester, academic_year))
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print(f"Assignment error: {e}")
+
+    return redirect(url_for('admin_assignments'))
+
+
+@app.route('/admin/delete_assignment/<int:assignment_id>')
+def delete_assignment(assignment_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute(
+        'DELETE FROM mentor_assignments WHERE assignment_id = ?',
+        (assignment_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('admin_assignments'))
+
+# ============================================================
+# ADMIN — BULK MENTOR ASSIGNMENT
+# ============================================================
+
+@app.route('/admin/bulk_assign', methods=['GET', 'POST'])
+def bulk_assign():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    mentors = conn.execute(
+        'SELECT * FROM mentors ORDER BY name'
+    ).fetchall()
+
+    departments = conn.execute('''
+        SELECT DISTINCT department, semester
+        FROM students
+        ORDER BY department, semester
+    ''').fetchall()
+
+    selected_dept = request.args.get('department', '')
+    selected_sem = request.args.get('semester', '')
+    group_size = int(request.args.get('group_size', 6))
+
+    students = []
+    if selected_dept and selected_sem:
+        students = conn.execute('''
+            SELECT s.*,
+                   ma.mentor_id as assigned_mentor_id,
+                   m.name as assigned_mentor_name
+            FROM students s
+            LEFT JOIN mentor_assignments ma
+                ON s.student_id = ma.student_id
+                AND ma.semester = ?
+            LEFT JOIN mentors m
+                ON ma.mentor_id = m.mentor_id
+            WHERE s.department = ? AND s.semester = ?
+            ORDER BY s.student_id
+        ''', (selected_sem, selected_dept,
+              selected_sem)).fetchall()
+
+    conn.close()
+
+    # Auto divide into groups based on group_size
+    groups = []
+    for i in range(0, len(students), group_size):
+        groups.append(list(students[i:i + group_size]))
+
+    return render_template('admin_bulk_assign.html',
+                           mentors=mentors,
+                           departments=departments,
+                           students=students,
+                           groups=groups,
+                           selected_dept=selected_dept,
+                           selected_sem=selected_sem,
+                           group_size=group_size)
+
+
+@app.route('/admin/bulk_assign/save', methods=['POST'])
+def bulk_assign_save():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    academic_year = request.form.get('academic_year')
+    semester = request.form.get('semester')
+    department = request.form.get('department')
+
+    # Get all group mentor assignments from form
+    # Form sends: group_0_mentor, group_1_mentor, etc.
+    # And group_0_students = comma separated student IDs
+
+    conn = get_db()
+    assigned_count = 0
+
+    group_index = 0
+    while True:
+        mentor_id = request.form.get(f'group_{group_index}_mentor')
+        student_ids = request.form.get(f'group_{group_index}_students')
+
+        if mentor_id is None:
+            break
+
+        if student_ids and mentor_id:
+            for student_id in student_ids.split(','):
+                student_id = student_id.strip()
+                if not student_id:
+                    continue
+
+                # Check if assignment already exists
+                existing = conn.execute('''
+                    SELECT assignment_id FROM mentor_assignments
+                    WHERE student_id = ? AND semester = ?
+                ''', (student_id, semester)).fetchone()
+
+                if existing:
+                    # Update existing
+                    conn.execute('''
+                        UPDATE mentor_assignments
+                        SET mentor_id = ?, academic_year = ?
+                        WHERE student_id = ? AND semester = ?
+                    ''', (mentor_id, academic_year,
+                          student_id, semester))
+                else:
+                    # Create new
+                    conn.execute('''
+                        INSERT INTO mentor_assignments
+                        (student_id, mentor_id, semester, academic_year)
+                        VALUES (?, ?, ?, ?)
+                    ''', (student_id, mentor_id,
+                          semester, academic_year))
+
+                assigned_count += 1
+
+        group_index += 1
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('bulk_assign',
+                            department=department,
+                            semester=semester,
+                            success=assigned_count))
 # ============================================================
 # RUN APP
 # ============================================================

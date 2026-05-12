@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+
+{% block title %}Bulk Mentor Assignment{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr auto;
+        gap: 16px;
+        align-items: end;
+    }
+
+    .groups-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        margin-bottom: 24px;
+    }
+
+    .group-card {
+        background: white;
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+
+    .group-card.drag-over {
+        border-color: #3182ce;
+        background: #ebf8ff;
+    }
+
+    .group-header {
+        background: #f7fafc;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .group-title {
+        font-weight: 700;
+        font-size: 14px;
+        color: #1a202c;
+    }
+
+    .group-count {
+        font-size: 12px;
+        color: #718096;
+        background: #e2e8f0;
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+
+    .students-drop-zone {
+        min-height: 120px;
+        padding: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-content: flex-start;
+    }
+
+    .student-chip {
+        background: #ebf8ff;
+        color: #2b6cb0;
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: grab;
+        user-select: none;
+        border: 1px solid #bee3f8;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .student-chip:hover {
+        background: #bee3f8;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .student-chip.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    .drop-hint {
+        width: 100%;
+        text-align: center;
+        color: #cbd5e0;
+        font-size: 13px;
+        padding: 20px;
+        border: 2px dashed #e2e8f0;
+        border-radius: 8px;
+    }
+
+    .mentor-select-row {
+        padding: 12px 16px;
+        border-top: 1px solid #e2e8f0;
+        background: #f7fafc;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .mentor-select-row label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #4a5568;
+        white-space: nowrap;
+    }
+
+    .save-bar {
+        position: sticky;
+        bottom: 0;
+        background: white;
+        border-top: 2px solid #e2e8f0;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+        border-radius: 16px 16px 0 0;
+        margin: 0 -24px -32px;
+    }
+
+    .success-banner {
+        background: #f0fff4;
+        border: 1px solid #9ae6b4;
+        border-radius: 10px;
+        padding: 14px 20px;
+        margin-bottom: 20px;
+        color: #276749;
+        font-weight: 600;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">⚡ Bulk Mentor Assignment</div>
+    <div class="page-subtitle">
+        Auto-group students and assign mentors in one click
+    </div>
+</div>
+
+{% if request.args.get('success') %}
+<div class="success-banner">
+    ✅ Successfully assigned mentors to
+    {{ request.args.get('success') }} students!
+</div>
+{% endif %}
+
+<!-- Filter -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Select Department & Semester</div>
+    </div>
+    <form method="GET" action="/admin/bulk_assign">
+        <div class="filter-bar">
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Department</label>
+                <select name="department" class="form-control" required>
+                    <option value="">Select department</option>
+                    {% set seen = [] %}
+                    {% for d in departments %}
+                        {% if d.department not in seen %}
+                            <option value="{{ d.department }}"
+                                {% if selected_dept == d.department %}
+                                    selected{% endif %}>
+                                {{ d.department }}
+                            </option>
+                            {% if seen.append(d.department) %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Semester</label>
+                <select name="semester" class="form-control" required>
+                    <option value="">Select semester</option>
+                    {% for sem in range(1, 9) %}
+                    <option value="{{ sem }}"
+                        {% if selected_sem == sem|string %}
+                            selected{% endif %}>
+                        Semester {{ sem }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Group Size</label>
+                <select name="group_size" class="form-control">
+                    {% for size in [4, 5, 6, 7, 8, 10, 12, 15] %}
+                    <option value="{{ size }}"
+                        {% if group_size == size %}selected{% endif %}>
+                        {{ size }} students per group
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display:flex; align-items:flex-end;">
+                <button type="submit" class="btn btn-primary">
+                    Load Students →
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+{% if selected_dept and selected_sem %}
+{% if students %}
+
+<!-- Instructions -->
+<div style="background: #fffaf0; border: 1px solid #fbd38d;
+            border-radius: 10px; padding: 12px 16px;
+            margin-bottom: 20px; font-size: 13px; color: #744210;">
+    💡 <strong>Tip:</strong> Drag and drop students between groups
+    to reorganize them. Then select a mentor for each group
+    and click Save.
+</div>
+
+<form method="POST" action="/admin/bulk_assign/save"
+      id="assignmentForm">
+    <input type="hidden" name="department" value="{{ selected_dept }}">
+    <input type="hidden" name="semester" value="{{ selected_sem }}">
+    <input type="hidden" name="academic_year" id="academic_year"
+           value="2025-26">
+
+    <!-- Academic year selector -->
+    <div style="display:flex; align-items:center; gap:16px;
+                margin-bottom:20px;">
+        <label class="form-label" style="margin:0; white-space:nowrap;">
+            Academic Year:
+        </label>
+        <select class="form-control" style="max-width:200px;"
+                onchange="document.getElementById(
+                    'academic_year').value=this.value">
+            <option value="2023-24">2023-24</option>
+            <option value="2024-25">2024-25</option>
+            <option value="2025-26" selected>2025-26</option>
+            <option value="2026-27">2026-27</option>
+        </select>
+        <span style="font-size:13px; color:#718096;">
+            {{ students|length }} total students →
+            {{ groups|length }} groups of ~{{ group_size }}
+        </span>
+    </div>
+
+    <!-- Groups -->
+    <div class="groups-container" id="groupsContainer">
+        {% for group in groups %}
+        <div class="group-card" id="group-{{ loop.index0 }}"
+             ondragover="onDragOver(event)"
+             ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event, {{ loop.index0 }})">
+
+            <div class="group-header">
+                <div class="group-title">
+                    Group {{ loop.index }}
+                </div>
+                <span class="group-count"
+                      id="count-{{ loop.index0 }}">
+                    {{ group|length }} students
+                </span>
+            </div>
+
+            <div class="students-drop-zone"
+                 id="zone-{{ loop.index0 }}">
+                {% for student in group %}
+                <div class="student-chip"
+                     draggable="true"
+                     id="student-{{ student.student_id }}"
+                     data-student-id="{{ student.student_id }}"
+                     data-student-name="{{ student.name }}"
+                     ondragstart="onDragStart(event)"
+                     ondragend="onDragEnd(event)">
+                    <span>{{ student.name }}</span>
+                    <span style="opacity:0.6; font-size:10px;">
+                        {{ student.student_id }}
+                    </span>
+                </div>
+                {% endfor %}
+                <div class="drop-hint" id="hint-{{ loop.index0 }}"
+                     style="display:{% if group|length == 0 %}flex{% else %}none{% endif %}">
+                    Drop students here
+                </div>
+            </div>
+
+            <!-- Mentor selector -->
+            <div class="mentor-select-row">
+                <label>Mentor:</label>
+                <select name="group_{{ loop.index0 }}_mentor"
+                        class="form-control" required>
+                    <option value="">Select mentor</option>
+                    {% for mentor in mentors %}
+                    <option value="{{ mentor.mentor_id }}"
+                        {% if group[0].assigned_mentor_id ==
+                               mentor.mentor_id %}
+                            selected
+                        {% endif %}>
+                        {{ mentor.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Hidden input for student IDs in this group -->
+            <input type="hidden"
+                   name="group_{{ loop.index0 }}_students"
+                   id="students-{{ loop.index0 }}"
+                   value="{{ group|map(
+                       attribute='student_id')|join(',') }}">
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Save bar -->
+    <div class="save-bar">
+        <div style="font-size:14px; color:#718096;">
+            Assigning mentors to
+            <strong style="color:#1a202c;">
+                {{ students|length }} students
+            </strong>
+            in {{ selected_dept }}, Semester {{ selected_sem }}
+        </div>
+        <div style="display:flex; gap:12px;">
+            <a href="/admin/assignments" class="btn btn-outline">
+                View All Assignments
+            </a>
+            <button type="submit" class="btn btn-success"
+                    style="padding: 12px 28px;">
+                ✅ Save All Assignments
+            </button>
+        </div>
+    </div>
+</form>
+
+{% else %}
+<div class="card">
+    <div style="text-align:center; padding:40px; color:#718096;">
+        <div style="font-size:40px; margin-bottom:12px;">🔍</div>
+        <div style="font-weight:600;">No students found</div>
+        <div style="font-size:14px; margin-top:8px;">
+            No students registered for {{ selected_dept }},
+            Semester {{ selected_sem }} yet.
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let draggedStudent = null;
+let draggedFromGroup = null;
+
+function onDragStart(event) {
+    draggedStudent = event.target;
+    draggedFromGroup = event.target.closest('.group-card').id;
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragEnd(event) {
+    event.target.classList.remove('dragging');
+}
+
+function onDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const groupCard = event.target.closest('.group-card');
+    if (groupCard) groupCard.classList.add('drag-over');
+}
+
+function onDragLeave(event) {
+    const groupCard = event.target.closest('.group-card');
+    if (groupCard) groupCard.classList.remove('drag-over');
+}
+
+function onDrop(event, groupIndex) {
+    event.preventDefault();
+
+    const groupCard = document.getElementById('group-' + groupIndex);
+    groupCard.classList.remove('drag-over');
+
+    if (!draggedStudent) return;
+
+    const dropZone = document.getElementById('zone-' + groupIndex);
+    const hint = document.getElementById('hint-' + groupIndex);
+
+    // Add student to new group
+    dropZone.insertBefore(draggedStudent, hint);
+
+    // Update hidden inputs
+    updateGroupStudents();
+
+    // Update counts
+    updateCounts();
+
+    draggedStudent = null;
+    draggedFromGroup = null;
+}
+
+function updateGroupStudents() {
+    // For each group, collect all student IDs and update hidden input
+    const groups = document.querySelectorAll('.group-card');
+    groups.forEach((group, index) => {
+        const chips = group.querySelectorAll('.student-chip');
+        const ids = Array.from(chips).map(
+            chip => chip.dataset.studentId
+        );
+        const hiddenInput = document.getElementById(
+            'students-' + index
+        );
+        if (hiddenInput) hiddenInput.value = ids.join(',');
+
+        // Show/hide drop hint
+        const hint = document.getElementById('hint-' + index);
+        if (hint) {
+            hint.style.display = chips.length === 0 ? 'flex' : 'none';
+        }
+    });
+}
+
+function updateCounts() {
+    const groups = document.querySelectorAll('.group-card');
+    groups.forEach((group, index) => {
+        const chips = group.querySelectorAll('.student-chip');
+        const countEl = document.getElementById('count-' + index);
+        if (countEl) {
+            countEl.textContent = chips.length + ' students';
+        }
+    });
+}
+</script>
+{% endblock %}

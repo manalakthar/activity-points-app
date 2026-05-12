@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+
+{% block title %}Coordinator Review{% endblock %}
+
+{% block extra_css %}
+<style>
+    .review-grid {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 1.5rem;
+        align-items: start;
+    }
+    @media(max-width:900px) {
+        .review-grid { grid-template-columns: 1fr; }
+    }
+    .cert-preview {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #f8fafc;
+        text-align: center;
+        padding: 1rem;
+    }
+    .cert-preview img { max-width: 100%; border-radius: 6px; }
+    .extracted-text {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        font-size: .82rem;
+        color: #2d3748;
+        font-family: monospace;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+    .detail-list { display: flex; flex-direction: column; gap: 8px; }
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f4f8;
+    }
+    .detail-row dt { color: #718096; font-weight: 500; }
+    .detail-row dd { color: #1a202c; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Final Review</div>
+    <div class="page-subtitle">
+        SAP Coordinator — Final Approval
+    </div>
+</div>
+
+<div class="review-grid">
+
+    <!-- Left: Details -->
+    <div style="display:flex; flex-direction:column; gap:1.25rem;">
+
+        <!-- Student Info -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Student Information</div>
+            </div>
+            <div class="detail-list">
+                <div class="detail-row">
+                    <dt>Name</dt>
+                    <dd>{{ submission.student_name }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Student ID</dt>
+                    <dd>{{ submission.student_id }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Submitted</dt>
+                    <dd>{{ submission.submitted_date }}</dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Info -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Activity Details</div>
+            </div>
+            <div class="detail-list">
+                <div class="detail-row">
+                    <dt>Activity</dt>
+                    <dd>{{ submission.activity_name }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Category</dt>
+                    <dd>{{ submission.category }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Role</dt>
+                    <dd>{{ submission.role|capitalize }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Organized By</dt>
+                    <dd>{{ submission.organized_by }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Date</dt>
+                    <dd>{{ submission.activity_date }}</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Duration</dt>
+                    <dd>{{ submission.duration_hours }} hrs</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Points Claimed</dt>
+                    <dd><strong>{{ submission.points_claimed }}</strong></dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Max Allowed (Participant)</dt>
+                    <dd>{{ submission.max_points_participant }} pts</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Max Allowed (Organizer)</dt>
+                    <dd>{{ submission.max_points_organizer }} pts</dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Face Verified</dt>
+                    <dd>
+                        {% if submission.face_matched %}
+                            <span style="color:#38a169;">✅ Yes</span>
+                        {% else %}
+                            <span style="color:#e53e3e;">❌ No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="detail-row">
+                    <dt>Protsaha Updated</dt>
+                    <dd>
+                        {% if submission.protsaha_updated %}
+                            <span style="color:#38a169;">✅ Yes</span>
+                        {% else %}
+                            <span style="color:#718096;">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- OCR Text -->
+        {% if submission.extracted_text %}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">OCR Extracted Text</div>
+                <div class="card-subtitle">
+                    Automatically extracted from certificate
+                </div>
+            </div>
+            <div class="extracted-text">
+                {{ submission.extracted_text }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+    <div class="card-header">
+        <div class="card-title">Final Decision</div>
+        <div class="card-subtitle">
+            Points awarded here are directly added to
+            the student's profile
+        </div>
+    </div>
+    <form method="POST" id="reviewForm"
+          action="/coordinator/review/{{ submission.submission_id }}">
+
+        <!-- Hidden action field -->
+        <input type="hidden" name="action"
+               id="form_action" value="approve">
+
+        <div class="form-group">
+            <label class="form-label">Points to Award</label>
+            <input type="number" name="points_awarded"
+                   class="form-control"
+                   min="0"
+                   max="{{ submission.max_points_organizer }}"
+                   value="{{ submission.points_claimed }}"
+                   required>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                Maximum allowed:
+                {% if submission.role == 'organizer' %}
+                    {{ submission.max_points_organizer }} pts
+                {% else %}
+                    {{ submission.max_points_participant }} pts
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Rejection note -->
+        <div class="form-group" id="rejection-note-group"
+             style="display:none;">
+            <label class="form-label" style="color:#e53e3e;">
+                Rejection Reason ✱
+            </label>
+            <textarea id="rejection_note_input"
+                      name="rejection_note"
+                      class="form-control"
+                      rows="3"
+                      placeholder="Explain why this submission is being rejected. The student will see this reason."
+                      style="resize:vertical;"></textarea>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                This note will be visible to the student
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:20px;
+                    padding-top:20px; border-top:1px solid #e2e8f0;">
+            <button type="submit" class="btn btn-success"
+                    onclick="document.getElementById(
+                        'form_action').value='approve'">
+                ✅ Final Approve & Award Points
+            </button>
+            <button type="button" class="btn btn-danger"
+                    onclick="showRejectionNote(event)">
+                ❌ Reject
+            </button>
+            <a href="/coordinator/dashboard"
+               class="btn btn-outline">Back</a>
+        </div>
+    </form>
+</div>
+
+    <!-- Right: Certificate -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Certificate / Proof</div>
+            </div>
+            {% if submission.certificate_path %}
+                <div class="cert-preview">
+                    {% if submission.certificate_path.endswith('.pdf') %}
+                        <div style="padding:2rem; color:#718096;">
+                            📄 PDF Certificate<br><br>
+                            <a href="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                               target="_blank" class="btn btn-primary">
+                                Open PDF
+                            </a>
+                        </div>
+                    {% else %}
+                        <img src="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                             alt="Certificate">
+                        <div style="margin-top:.75rem;">
+                            <a href="/uploads/{{ submission.certificate_path|replace('uploads\\', '')|replace('uploads/', '') }}"
+                               target="_blank" class="btn btn-outline">
+                                View Full Size
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div style="text-align:center; padding:2rem; color:#718096;">
+                    <div style="font-size:40px;">📎</div>
+                    <p>No certificate uploaded</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% block extra_js %}
+<script>
+let rejectionReady = false;
+
+function showRejectionNote(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!rejectionReady) {
+        const noteGroup = document.getElementById('rejection-note-group');
+        noteGroup.style.display = 'block';
+        noteGroup.querySelector('textarea').focus();
+        event.target.innerHTML = '❌ Confirm Rejection';
+        rejectionReady = true;
+    } else {
+        const textarea = document.getElementById('rejection_note_input');
+        if (!textarea.value.trim()) {
+            textarea.style.border = '2px solid #e53e3e';
+            textarea.focus();
+            return;
+        }
+        document.getElementById('form_action').value = 'reject';
+        document.getElementById('reviewForm').submit();
+    }
+}
+
+function hideRejectionNote() {
+    document.getElementById('rejection-note-group').style.display = 'none';
+    rejectionReady = false;
+}
+</script>
+{% endblock %}
+{% endblock %}

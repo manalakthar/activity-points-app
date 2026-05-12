@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Coordinator Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Departmental Coordinator Dashboard</div>
+    <div class="page-subtitle">
+        Welcome, {{ name }}! Review mentor-approved submissions.
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+      <div style="display: flex; justify-content: flex-end;
+            margin-bottom: 16px;">
+    <a href="/coordinator/watchlist" class="btn btn-danger">
+        ⚠️ View Watch List
+    </a>
+</div>
+        <div class="card-title">Mentor Approved Submissions</div>
+        <div class="card-subtitle">
+            {{ submissions|length }} submission(s) waiting for your review
+        </div>
+    </div>
+
+    {% if submissions %}
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Activity</th>
+                <th>Category</th>
+                <th>Role</th>
+                <th>Points</th>
+                <th>Face Verified</th>
+                <th>Submitted</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in submissions %}
+            <tr>
+                <td><strong>{{ sub.student_name }}</strong>
+                    <div style="font-size: 12px; color: #718096;">
+                        {{ sub.student_id }}
+                    </div>
+                </td>
+                <td>{{ sub.activity_name }}</td>
+                <td style="font-size: 13px;">{{ sub.category }}</td>
+                <td style="text-transform: capitalize;">{{ sub.role }}</td>
+                <td><strong>{{ sub.points_claimed }} pts</strong></td>
+                <td>
+                    {% if sub.face_matched %}
+                        <span style="color: #38a169;">✅ Yes</span>
+                    {% else %}
+                        <span style="color: #e53e3e;">❌ No</span>
+                    {% endif %}
+                </td>
+                <td style="font-size: 13px; color: #718096;">
+                    {{ sub.submitted_date[:10] if sub.submitted_date }}
+                </td>
+                <td>
+                    <a href="/coordinator/review/{{ sub.submission_id }}"
+                       class="btn btn-primary"
+                       style="padding: 6px 16px; font-size: 13px;">
+                        Review
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
+        <div style="font-weight: 600;">All caught up!</div>
+        <div style="font-size: 14px; margin-top: 8px;">
+            No submissions to review right now.
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

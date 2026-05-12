@@ -1,0 +1,326 @@
+{% extends 'base.html' %}
+
+{% block title %}Review Submission{% endblock %}
+
+{% block extra_css %}
+<style>
+    .review-grid {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 1.5rem;
+        align-items: start;
+    }
+    @media(max-width:900px) {
+        .review-grid { grid-template-columns: 1fr; }
+    }
+    .cert-preview {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #f8fafc;
+        text-align: center;
+        padding: 1rem;
+    }
+    .cert-preview img {
+        max-width: 100%;
+        border-radius: 6px;
+    }
+    .extracted-text {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        font-size: .82rem;
+        color: #2d3748;
+        font-family: monospace;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+    .review-action-bar {
+        display: flex;
+        gap: .75rem;
+        flex-wrap: wrap;
+        padding-top: 1.25rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1.25rem;
+    }
+    .detail-list { display: flex; flex-direction: column; gap: 8px; }
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f4f8;
+    }
+    .detail-row dt { color: #718096; font-weight: 500; }
+    .detail-row dd { color: #1a202c; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+    <div class="page-header">
+        <div class="page-title">Review Submission</div>
+        <div class="page-subtitle">
+            Submission #{{ submission.submission_id }} —
+            {{ submission.student_name }}
+        </div>
+    </div>
+
+    <div class="review-grid">
+
+        <!-- Left: Details -->
+        <div style="display:flex; flex-direction:column; gap:1.25rem;">
+
+            <!-- Student Info -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Student Information</div>
+                </div>
+                <div class="detail-list">
+                    <div class="detail-row">
+                        <dt>Name</dt>
+                        <dd>{{ submission.student_name }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Student ID</dt>
+                        <dd>{{ submission.student_id }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Submitted</dt>
+                        <dd>{{ submission.submitted_date }}</dd>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Info -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Activity Details</div>
+                </div>
+                <div class="detail-list">
+                    <div class="detail-row">
+                        <dt>Activity</dt>
+                        <dd>{{ submission.activity_name }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Category</dt>
+                        <dd>{{ submission.category }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Role</dt>
+                        <dd>{{ submission.role|capitalize }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Organized By</dt>
+                        <dd>{{ submission.organized_by }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Activity Date</dt>
+                        <dd>{{ submission.activity_date }}</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Duration</dt>
+                        <dd>{{ submission.duration_hours }} hrs</dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Points Claimed</dt>
+                        <dd><strong>{{ submission.points_claimed }}</strong></dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Face Match</dt>
+                        <dd>
+                            {% if submission.face_matched %}
+                                <span style="color:#38a169;">✅ Matched</span>
+                            {% else %}
+                                <span style="color:#e53e3e;">❌ No Match</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Protsaha Updated</dt>
+                        <dd>
+                            {% if submission.protsaha_updated %}
+                                <span style="color:#38a169;">✅ Yes</span>
+                            {% else %}
+                                <span style="color:#718096;">No</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt>Status</dt>
+                        <dd>
+                            {% if submission.status == 'pending' %}
+                                <span class="badge badge-pending">Pending</span>
+                            {% elif submission.status == 'mentor_approved' %}
+                                <span class="badge badge-mentor">
+                                    Mentor Approved
+                                </span>
+                            {% elif submission.status == 'approved' %}
+                                <span class="badge badge-approved">
+                                    Approved
+                                </span>
+                            {% elif submission.status == 'rejected' %}
+                                <span class="badge badge-rejected">
+                                    Rejected
+                                </span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OCR Text -->
+            {% if submission.extracted_text %}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">OCR Extracted Text</div>
+                    <div class="card-subtitle">
+                        Text automatically extracted from certificate
+                    </div>
+                </div>
+                <div class="extracted-text">
+                    {{ submission.extracted_text }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Review Form -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Your Review</div>
+    </div>
+    <form method="POST" id="reviewForm"
+          action="/mentor/review/{{ submission.submission_id }}">
+
+        <!-- Hidden action field -->
+        <input type="hidden" name="action"
+               id="form_action" value="approve">
+
+        <div class="form-group">
+            <label class="form-label">Points to Award</label>
+            <input type="number" name="points_awarded"
+                   class="form-control"
+                   min="0"
+                   max="{{ submission.points_claimed }}"
+                   value="{{ submission.points_awarded or
+                            submission.points_claimed }}"
+                   required>
+        </div>
+
+        <!-- Rejection note -->
+        <div class="form-group" id="rejection-note-group"
+             style="display:none;">
+            <label class="form-label" style="color:#e53e3e;">
+                Rejection Reason ✱
+            </label>
+            <textarea id="rejection_note_input"
+                      name="rejection_note"
+                      class="form-control"
+                      rows="3"
+                      placeholder="Explain why this submission is being rejected. The student will see this reason."
+                      style="resize:vertical;"></textarea>
+            <div style="font-size:12px; color:#718096; margin-top:4px;">
+                This note will be visible to the student on
+                their dashboard
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:20px;
+                    padding-top:20px; border-top:1px solid #e2e8f0;">
+            <button type="submit" class="btn btn-success"
+                    onclick="document.getElementById(
+                        'form_action').value='approve'">
+                ✅ Approve & Forward to Coordinator
+            </button>
+            <button type="button" class="btn btn-danger"
+                    onclick="showRejectionNote(event)">
+                ❌ Reject
+            </button>
+            <a href="/mentor/dashboard" class="btn btn-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+        </div>
+
+        <!-- Right: Certificate -->
+        <div style="display:flex; flex-direction:column; gap:1.25rem;">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Certificate / Proof</div>
+                </div>
+                {% if submission.certificate_path %}
+                    <div class="cert-preview">
+                        {% if submission.certificate_path.endswith('.pdf') %}
+                            <div style="padding:2rem; color:#718096;">
+                                📄 PDF Certificate<br><br>
+                                <a href="/{{ submission.certificate_path }}"
+                                   target="_blank" class="btn btn-primary">
+                                    Open PDF
+                                </a>
+                            </div>
+                        {% else %}
+                            <img src="/{{ submission.certificate_path }}"
+                                 alt="Certificate" style="max-width:100%;">
+                            <div style="margin-top:.75rem;">
+                                <a href="/{{ submission.certificate_path }}"
+                                   target="_blank" class="btn btn-outline">
+                                    View Full Size
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div style="text-align:center; padding:2rem;
+                                color:#718096;">
+                        <div style="font-size:40px;">📎</div>
+                        <p>No certificate uploaded</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% block extra_js %}
+<script>
+let rejectionReady = false;
+
+function showRejectionNote(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!rejectionReady) {
+        // First click — show note field
+        const noteGroup = document.getElementById('rejection-note-group');
+        noteGroup.style.display = 'block';
+        noteGroup.querySelector('textarea').focus();
+        event.target.innerHTML = '❌ Confirm Rejection';
+        rejectionReady = true;
+    } else {
+        // Second click — validate and submit
+        const textarea = document.getElementById('rejection_note_input');
+
+        if (!textarea.value.trim()) {
+            textarea.style.border = '2px solid #e53e3e';
+            textarea.focus();
+            return;
+        }
+
+        // Set the action to reject and submit
+        document.getElementById('form_action').value = 'reject';
+        document.getElementById('reviewForm').submit();
+    }
+}
+
+function hideRejectionNote() {
+    document.getElementById('rejection-note-group').style.display = 'none';
+    rejectionReady = false;
+}
+</script>
+{% endblock %}
+{% endblock %}
