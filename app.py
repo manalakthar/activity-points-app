@@ -103,6 +103,55 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================================
+# FORGOT PASSWORD
+# ============================================================
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        role = request.form.get('role')
+        user_id = request.form.get('user_id')
+        email = request.form.get('email')
+        new_password = request.form.get('new_password')
+
+        conn = get_db()
+        
+        table = ""
+        id_col = ""
+        if role == 'student':
+            table = "students"
+            id_col = "student_id"
+        elif role == 'mentor':
+            table = "mentors"
+            id_col = "mentor_id"
+        elif role == 'coordinator':
+            table = "coordinators"
+            id_col = "coordinator_id"
+
+        # Check if user exists with this ID and Email
+        user = conn.execute(
+            f'SELECT * FROM {table} WHERE {id_col} = ? AND email = ?',
+            (user_id, email)
+        ).fetchone()
+
+        if user:
+            # Update password
+            conn.execute(
+                f'UPDATE {table} SET password = ? WHERE {id_col} = ?',
+                (new_password, user_id)
+            )
+            conn.commit()
+            conn.close()
+            return render_template('forgot_password.html', 
+                                   success='Password has been reset successfully!')
+        
+        conn.close()
+        return render_template('forgot_password.html', 
+                               error='Invalid ID or Email combination')
+
+    return render_template('forgot_password.html')
+
+# ============================================================
 # STUDENT REGISTRATION
 # ============================================================
 
