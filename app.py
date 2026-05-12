@@ -7,7 +7,9 @@ from database import (
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
     get_all_activities, get_mentor_for_student,
-    get_all_assignments
+    get_all_assignments, get_current_calendar,
+    get_all_calendars, get_eligible_students,
+    advance_students
 )
 
 app = Flask(__name__)
@@ -848,6 +850,126 @@ def bulk_assign_save():
                             department=department,
                             semester=semester,
                             success=assigned_count))
+# ============================================================
+# ADMIN — ACADEMIC CALENDAR
+# ============================================================
+
+@app.route('/admin/calendar', methods=['GET', 'POST'])
+def admin_calendar():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    from database import get_all_calendars, get_current_calendar
+
+    if request.method == 'POST':
+        semester = request.form.get('semester')
+        academic_year = request.form.get('academic_year')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        is_current = 1 if request.form.get('is_current') else 0
+
+        conn = get_db()
+
+        # If setting as current, unset all others first
+        if is_current:
+            conn.execute(
+                'UPDATE academic_calendar SET is_current = 0'
+            )
+
+        conn.execute('''
+            INSERT INTO academic_calendar
+            (semester, academic_year, start_date,
+             end_date, is_current, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (semester, academic_year, start_date,
+              end_date, is_current,
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for('admin_calendar'))
+
+    calendars = get_all_calendars()
+    current = get_current_calendar()
+    return render_template('admin_calendar.html',
+                           calendars=calendars,
+                           current=current)
+
+
+@app.route('/admin/calendar/set_current/<int:calendar_id>')
+def set_current_calendar(calendar_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute('UPDATE academic_calendar SET is_current = 0')
+    conn.execute(
+        'UPDATE academic_calendar SET is_current = 1 WHERE calendar_id = ?',
+        (calendar_id,)
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_calendar'))
+
+
+@app.route('/admin/calendar/delete/<int:calendar_id>')
+def delete_calendar(calendar_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute(
+        'DELETE FROM academic_calendar WHERE calendar_id = ?',
+        (calendar_id,)
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_calendar'))
+
+
+# ============================================================
+# ADMIN — ADVANCE SEMESTER
+# ============================================================
+
+@app.route('/admin/advance_semester', methods=['GET', 'POST'])
+def advance_semester():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    from database import (get_current_calendar,
+                          get_eligible_students, advance_students)
+
+    current_calendar = get_current_calendar()
+    eligible_students = []
+    success_message = None
+
+    if current_calendar:
+        eligible_students = get_eligible_students(
+            current_calendar['semester']
+        )
+
+    if request.method == 'POST':
+        # Get selected student IDs from form
+        selected_ids = request.form.getlist('student_ids')
+        academic_year = request.form.get('academic_year')
+
+        if selected_ids:
+            advance_students(selected_ids, academic_year)
+            success_message = (
+                f"Successfully advanced {len(selected_ids)} "
+                f"students to next semester!"
+            )
+            # Refresh eligible students list
+            if current_calendar:
+                eligible_students = get_eligible_students(
+                    current_calendar['semester']
+                )
+
+    return render_template('admin_advance_semester.html',
+                           current_calendar=current_calendar,
+                           eligible_students=eligible_students,
+                           success_message=success_message)
+
 # ============================================================
 # RUN APP
 # ============================================================
