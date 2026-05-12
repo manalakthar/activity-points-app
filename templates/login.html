@@ -9,7 +9,12 @@
         align-items: center;
         justify-content: center;
         min-height: 100vh;
-        background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+        background: linear-gradient(135deg, var(--nav-bg) 0%, var(--primary-color) 100%);
+        transition: background 0.3s;
+    }
+
+    [data-theme="dark"] body {
+        background: #1a202c;
     }
 
     main {
@@ -51,22 +56,23 @@
     }
 
     .login-card {
-        background: white;
+        background: var(--card-bg);
         border-radius: 20px;
         padding: 36px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        transition: background-color 0.3s;
     }
 
     .login-title {
         font-size: 22px;
         font-weight: 700;
-        color: #1a202c;
+        color: var(--text-main);
         margin-bottom: 4px;
     }
 
     .login-subtitle {
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
         margin-bottom: 28px;
     }
 
@@ -94,25 +100,25 @@
         align-items: center;
         gap: 6px;
         padding: 12px 8px;
-        border: 2px solid #e2e8f0;
+        border: 2px solid var(--border-color);
         border-radius: 10px;
         cursor: pointer;
         transition: all 0.2s;
         font-size: 12px;
         font-weight: 600;
-        color: #718096;
+        color: var(--text-muted);
         text-align: center;
     }
 
     .role-label:hover {
-        border-color: #3182ce;
-        color: #3182ce;
+        border-color: var(--primary-color);
+        color: var(--primary-color);
     }
 
     .role-option input:checked + .role-label {
-        border-color: #3182ce;
-        background: #ebf8ff;
-        color: #2b6cb0;
+        border-color: var(--primary-color);
+        background: rgba(49, 130, 206, 0.1);
+        color: var(--primary-color);
     }
 
     .role-icon {
@@ -122,7 +128,7 @@
     .divider {
         text-align: center;
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
         margin-bottom: 20px;
         position: relative;
     }
@@ -133,7 +139,7 @@
         top: 50%;
         width: 42%;
         height: 1px;
-        background: #e2e8f0;
+        background: var(--border-color);
     }
 
     .divider::before { left: 0; }
@@ -143,11 +149,11 @@
         text-align: center;
         margin-top: 20px;
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .register-link a {
-        color: #3182ce;
+        color: var(--primary-color);
         font-weight: 600;
         text-decoration: none;
     }
