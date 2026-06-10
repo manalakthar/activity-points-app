@@ -103,6 +103,55 @@ def logout():
     return redirect(url_for('login'))
 
 # ============================================================
+# FORGOT PASSWORD
+# ============================================================
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        role = request.form.get('role')
+        user_id = request.form.get('user_id')
+        email = request.form.get('email')
+        new_password = request.form.get('new_password')
+
+        conn = get_db()
+        
+        table = ""
+        id_col = ""
+        if role == 'student':
+            table = "students"
+            id_col = "student_id"
+        elif role == 'mentor':
+            table = "mentors"
+            id_col = "mentor_id"
+        elif role == 'coordinator':
+            table = "coordinators"
+            id_col = "coordinator_id"
+
+        # Check if user exists with this ID and Email
+        user = conn.execute(
+            f'SELECT * FROM {table} WHERE {id_col} = ? AND email = ?',
+            (user_id, email)
+        ).fetchone()
+
+        if user:
+            # Update password
+            conn.execute(
+                f'UPDATE {table} SET password = ? WHERE {id_col} = ?',
+                (new_password, user_id)
+            )
+            conn.commit()
+            conn.close()
+            return render_template('forgot_password.html', 
+                                   success='Password has been reset successfully!')
+        
+        conn.close()
+        return render_template('forgot_password.html', 
+                               error='Invalid ID or Email combination')
+
+    return render_template('forgot_password.html')
+
+# ============================================================
 # STUDENT REGISTRATION
 # ============================================================
 
@@ -430,6 +479,87 @@ def coordinator_review(submission_id):
     return render_template('coordinator_review.html', submission=submission)
 
 # ============================================================
+# COLLEGE DASHBOARD
+# ============================================================
+
+@app.route('/college/dashboard')
+def college_dashboard():
+
+    submissions = get_pending_submissions_for_college()
+
+    conn = get_db()
+    watchlist = conn.execute(
+        'SELECT * FROM students WHERE watch_list = 1'
+    ).fetchall()
+    conn.close()
+
+    return render_template('college_dashboard.html',
+                           submissions=submissions,
+                           watchlist=watchlist,
+                           name=session['name'])
+
+# ============================================================
+# COLLEGE FINAL APPROVAL
+# ============================================================
+
+@app.route('/college/review/<int:submission_id>', methods=['GET', 'POST'])
+def college_review(submission_id):
+    if session.get('role') != 'college':
+        return redirect(url_for('login'))
+
+    conn = get_db()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        points_awarded = int(request.form.get('points_awarded', 0))
+
+        if action == 'approve':
+            # Update submission
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'approved', points_awarded = ?,
+                reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (points_awarded,
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  submission_id))
+
+            # Get student id from submission
+            submission = conn.execute(
+                'SELECT student_id FROM submissions WHERE submission_id = ?',
+                (submission_id,)
+            ).fetchone()
+
+            # Add points to student
+            conn.commit()
+            conn.close()
+            update_student_points(submission['student_id'], points_awarded)
+
+        else:
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'rejected', reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
+            conn.commit()
+            conn.close()
+
+        return redirect(url_for('college_dashboard'))
+
+    submission = conn.execute('''
+        SELECT s.*, a.activity_name, a.category, 
+               a.max_points_participant, a.max_points_organizer,
+               st.name as student_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.submission_id = ?
+    ''', (submission_id,)).fetchone()
+    conn.close()
+
+    return render_template('college_review.html', submission=submission)
+
+# ============================================================
 # WATCHLIST
 # ============================================================
 @app.route('/coordinator/watchlist')
@@ -444,6 +574,8 @@ def watchlist():
     conn.close()
 
     return render_template('watchlist.html', students=students)
+
+    # ============================================================
 # ============================================================
 # ADMIN LOGIN
 # ============================================================
@@ -584,7 +716,6 @@ def admin_add_coordinator():
 def admin_delete(user_type, user_id):
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
-
     conn = get_db()
     if user_type == 'mentor':
         conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
@@ -598,7 +729,6 @@ def admin_delete(user_type, user_id):
     conn.close()
 
     return redirect(url_for('admin_dashboard'))
-
 # ============================================================
 # ADMIN — MENTOR ASSIGNMENTS
 # ============================================================
@@ -805,7 +935,6 @@ def bulk_assign_save():
                             department=department,
                             semester=semester,
                             success=assigned_count))
-
 # ============================================================
 # ADMIN — ACADEMIC CALENDAR
 # ============================================================
@@ -929,6 +1058,70 @@ def advance_semester():
 # ============================================================
 # RUN APP
 # ============================================================
+
+@app.route('/notifications')
+def get_notifications():
+    if not session.get('user_id'):
+        return jsonify([])
+
+    conn = get_db()
+    notifications = []
+
+    if session.get('role') == 'student':
+        # Notify student about reviewed submissions
+        reviewed = conn.execute('''
+            SELECT s.submission_id, a.activity_name, s.status, s.points_awarded
+            FROM submissions s
+            JOIN activities a ON s.activity_id = a.activity_id
+            WHERE s.student_id = ?
+            AND s.status IN ('approved', 'rejected', 'mentor_approved')
+        ''', (session['user_id'],)).fetchall()
+
+        for r in reviewed:
+            if r['status'] == 'approved':
+                notifications.append({
+                    'message': f"✅ Your claim for '{r['activity_name']}' was approved! {r['points_awarded']} pts awarded.",
+                    'type': 'success'
+                })
+            elif r['status'] == 'rejected':
+                notifications.append({
+                    'message': f"❌ Your claim for '{r['activity_name']}' was rejected.",
+                    'type': 'error'
+                })
+            elif r['status'] == 'mentor_approved':
+                notifications.append({
+                    'message': f"🔄 Your claim for '{r['activity_name']}' is under coordinator review.",
+                    'type': 'info'
+                })
+
+    elif session.get('role') == 'mentor':
+        # Notify mentor about pending submissions
+        pending = conn.execute('''
+            SELECT COUNT(*) as count FROM submissions
+            WHERE mentor_id = ? AND status = 'pending'
+        ''', (session['user_id'],)).fetchone()
+
+        if pending['count'] > 0:
+            notifications.append({
+                'message': f"📋 You have {pending['count']} pending submission(s) to review.",
+                'type': 'warning'
+            })
+
+    elif session.get('role') == 'departmental':
+        # Notify coordinator about pending submissions
+        pending = conn.execute('''
+            SELECT COUNT(*) as count FROM submissions
+            WHERE status = 'mentor_approved'
+        ''').fetchone()
+
+        if pending['count'] > 0:
+            notifications.append({
+                'message': f"📋 {pending['count']} submission(s) are waiting for your review.",
+                'type': 'warning'
+            })
+
+    conn.close()
+    return jsonify(notifications)
 
 if __name__ == '__main__':
     app.run(debug=True)

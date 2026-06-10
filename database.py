@@ -118,6 +118,25 @@ def init_db():
         )
     ''')
 
+    # Admin table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admins (
+            admin_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    ''')
+
+    # Add default admin account
+    try:
+        cursor.execute('''
+            INSERT INTO admins (admin_id, name, email, password)
+            VALUES (?, ?, ?, ?)
+        ''', ('ADMIN001', 'SJEC Admin', 'admin@sjec.ac.in', 'admin123'))
+    except:
+        pass  # Admin already exists
+
     # Submissions table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS submissions (

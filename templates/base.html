@@ -6,6 +6,42 @@
     <title>{% block title %}Activity Points Tracker{% endblock %} — SJEC</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --card-bg: white;
+            --text-main: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --nav-bg: #1a365d;
+            --nav-link: #bee3f8;
+            --primary-color: #3182ce;
+            --primary-hover: #2b6cb0;
+            --table-header-bg: #f7fafc;
+            --table-row-hover: #f7fafc;
+            --input-bg: white;
+            --input-border: #e2e8f0;
+            --shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a202c;
+            --card-bg: #2d3748;
+            --text-main: #f7fafc;
+            --text-secondary: #e2e8f0;
+            --text-muted: #a0aec0;
+            --border-color: #4a5568;
+            --nav-bg: #171923;
+            --nav-link: #90cdf4;
+            --primary-color: #4299e1;
+            --primary-hover: #63b3ed;
+            --table-header-bg: #1a202c;
+            --table-row-hover: #4a5568;
+            --input-bg: #1a202c;
+            --input-border: #4a5568;
+            --shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,20 +50,22 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
-            color: #1a202c;
+            background-color: var(--bg-color);
+            color: var(--text-main);
             min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         /* Navigation */
         nav {
-            background: #1a365d;
+            background: var(--nav-bg);
             padding: 0 32px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             height: 64px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: background 0.3s;
         }
 
         .nav-brand {
@@ -40,7 +78,7 @@
         .nav-logo {
             width: 36px;
             height: 36px;
-            background: #3182ce;
+            background: var(--primary-color);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -68,7 +106,7 @@
         }
 
         .nav-link {
-            color: #bee3f8;
+            color: var(--nav-link);
             text-decoration: none;
             padding: 8px 16px;
             border-radius: 8px;
@@ -91,6 +129,27 @@
             background: #e53e3e;
         }
 
+        /* Theme Toggle */
+        .theme-toggle {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.05);
+        }
+
         /* Main content */
         main {
             max-width: 1100px;
@@ -100,28 +159,29 @@
 
         /* Cards */
         .card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 16px;
             padding: 32px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow);
             margin-bottom: 24px;
+            transition: background-color 0.3s, box-shadow 0.3s;
         }
 
         .card-header {
             margin-bottom: 24px;
             padding-bottom: 16px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .card-title {
             font-size: 20px;
             font-weight: 600;
-            color: #1a202c;
+            color: var(--text-main);
         }
 
         .card-subtitle {
             font-size: 14px;
-            color: #718096;
+            color: var(--text-muted);
             margin-top: 4px;
         }
 
@@ -142,12 +202,12 @@
         }
 
         .btn-primary {
-            background: #3182ce;
+            background: var(--primary-color);
             color: white;
         }
 
         .btn-primary:hover {
-            background: #2b6cb0;
+            background: var(--primary-hover);
         }
 
         .btn-success {
@@ -170,12 +230,12 @@
 
         .btn-outline {
             background: transparent;
-            border: 2px solid #3182ce;
-            color: #3182ce;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
         }
 
         .btn-outline:hover {
-            background: #3182ce;
+            background: var(--primary-color);
             color: white;
         }
 
@@ -192,25 +252,25 @@
             display: block;
             font-size: 14px;
             font-weight: 500;
-            color: #4a5568;
+            color: var(--text-secondary);
             margin-bottom: 6px;
         }
 
         .form-control {
             width: 100%;
             padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
+            border: 1.5px solid var(--input-border);
             border-radius: 8px;
             font-size: 14px;
             font-family: 'Inter', sans-serif;
-            color: #1a202c;
-            transition: border-color 0.2s;
-            background: white;
+            color: var(--text-main);
+            transition: all 0.2s;
+            background: var(--input-bg);
         }
 
         .form-control:focus {
             outline: none;
-            border-color: #3182ce;
+            border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(49,130,206,0.1);
         }
 
@@ -233,16 +293,34 @@
             border: 1px solid #feb2b2;
         }
 
+        [data-theme="dark"] .alert-error {
+            background: #742a2a;
+            color: #fff5f5;
+            border-color: #9b2c2c;
+        }
+
         .alert-success {
             background: #f0fff4;
             color: #276749;
             border: 1px solid #9ae6b4;
         }
 
+        [data-theme="dark"] .alert-success {
+            background: #22543d;
+            color: #f0fff4;
+            border-color: #276749;
+        }
+
         .alert-warning {
             background: #fffaf0;
             color: #c05621;
             border: 1px solid #fbd38d;
+        }
+
+        [data-theme="dark"] .alert-warning {
+            background: #744210;
+            color: #fffaf0;
+            border-color: #9c4221;
         }
 
         /* Badges */
@@ -290,25 +368,25 @@
         th {
             text-align: left;
             padding: 12px 16px;
-            background: #f7fafc;
-            color: #4a5568;
+            background: var(--table-header-bg);
+            color: var(--text-secondary);
             font-weight: 600;
-            border-bottom: 2px solid #e2e8f0;
+            border-bottom: 2px solid var(--border-color);
         }
 
         td {
             padding: 12px 16px;
-            border-bottom: 1px solid #e2e8f0;
-            color: #2d3748;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
         }
 
         tr:hover td {
-            background: #f7fafc;
+            background: var(--table-row-hover);
         }
 
         /* Progress bar */
         .progress-container {
-            background: #e2e8f0;
+            background: var(--border-color);
             border-radius: 999px;
             height: 12px;
             overflow: hidden;
@@ -335,22 +413,23 @@
         }
 
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-            border-left: 4px solid #3182ce;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary-color);
+            transition: all 0.3s;
         }
 
         .stat-value {
             font-size: 32px;
             font-weight: 700;
-            color: #1a202c;
+            color: var(--text-main);
         }
 
         .stat-label {
             font-size: 13px;
-            color: #718096;
+            color: var(--text-muted);
             margin-top: 4px;
         }
 
@@ -362,12 +441,12 @@
         .page-title {
             font-size: 24px;
             font-weight: 700;
-            color: #1a202c;
+            color: var(--text-main);
         }
 
         .page-subtitle {
             font-size: 14px;
-            color: #718096;
+            color: var(--text-muted);
             margin-top: 4px;
         }
 
@@ -383,15 +462,90 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
+
+        /* Notification Bell */
+        .notif-bell {
+            position: relative;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            color: #bee3f8;
+            font-size: 20px;
+            transition: background 0.2s;
+        }
+        .notif-bell:hover { background: rgba(255,255,255,0.1); }
+        .notif-badge {
+            position: absolute;
+            top: 4px; right: 4px;
+            width: 8px; height: 8px;
+            background: #e53e3e;
+            border-radius: 50%;
+            display: none;
+        }
+
+        /* Notification Dropdown */
+        .notif-dropdown {
+            position: absolute;
+            top: 56px; right: 80px;
+            width: 340px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            z-index: 999;
+            display: none;
+            overflow: hidden;
+        }
+        .notif-header {
+            padding: 14px 18px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1a202c;
+        }
+        .notif-item {
+            padding: 12px 18px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f4f8;
+            line-height: 1.5;
+        }
+        .notif-item.success { border-left: 4px solid #38a169; }
+        .notif-item.error   { border-left: 4px solid #e53e3e; }
+        .notif-item.warning { border-left: 4px solid #d69e2e; }
+        .notif-item.info    { border-left: 4px solid #3182ce; }
+        .notif-empty { padding: 24px; text-align: center; color: #a0aec0; font-size: 13px; }
     </style>
+    <script>
+        // Apply theme immediately to prevent flicker
+        const theme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateToggleIcon();
+        }
+
+        function updateToggleIcon() {
+            const btn = document.getElementById('theme-btn');
+            if (!btn) return;
+            const current = document.documentElement.getAttribute('data-theme');
+            btn.innerHTML = current === 'dark' ? '☀️' : '🌙';
+        }
+
+        window.onload = updateToggleIcon;
+    </script>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-{% if session.get('user_id') %}
 <nav>
     <a href="/" class="nav-brand">
-        <div class="nav-logo">SAP</div>
+        <img src="{{ url_for('static', filename='logo.png') }}" 
+             onerror="this.style.display='none'; document.getElementById('nav-fallback').style.display='flex';"
+             alt="SJEC Logo" style="height: 40px; width: auto; object-fit: contain;">
+        <div id="nav-fallback" class="nav-logo" style="display: none;">SAP</div>
         <div>
             <div class="nav-title">Activity Points Tracker</div>
             <div class="nav-subtitle">St Joseph Engineering College</div>
@@ -402,11 +556,47 @@
         <a href="/logout" class="nav-link logout">Logout</a>
     </div>
 </nav>
-{% endif %}
 
 <main>
     {% block content %}{% endblock %}
 </main>
+
+<script>
+  function toggleNotif() {
+      const dropdown = document.getElementById('notif-dropdown');
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+      loadNotifications();
+  }
+
+  function loadNotifications() {
+      fetch('/notifications')
+          .then(res => res.json())
+          .then(data => {
+              const list = document.getElementById('notif-list');
+              const badge = document.getElementById('notif-badge');
+
+              if (data.length === 0) {
+                  list.innerHTML = '<div class="notif-empty">No new notifications</div>';
+                  badge.style.display = 'none';
+              } else {
+                  badge.style.display = 'block';
+                  list.innerHTML = data.map(n => `
+                      <div class="notif-item ${n.type}">${n.message}</div>
+                  `).join('');
+              }
+          });
+  }
+
+  // Auto load on page open
+  loadNotifications();
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+      if (!document.getElementById('notif-bell').contains(e.target)) {
+          document.getElementById('notif-dropdown').style.display = 'none';
+      }
+  });
+</script>
 
 {% block extra_js %}{% endblock %}
 </body>
