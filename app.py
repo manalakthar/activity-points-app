@@ -7,7 +7,9 @@ from database import (
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
     get_all_activities, get_mentor_for_student,
-    get_all_assignments
+    get_all_assignments, get_current_calendar,
+    get_all_calendars, get_eligible_students,
+    advance_students
 )
 
 app = Flask(__name__)
@@ -99,6 +101,55 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+# ============================================================
+# FORGOT PASSWORD
+# ============================================================
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        role = request.form.get('role')
+        user_id = request.form.get('user_id')
+        email = request.form.get('email')
+        new_password = request.form.get('new_password')
+
+        conn = get_db()
+        
+        table = ""
+        id_col = ""
+        if role == 'student':
+            table = "students"
+            id_col = "student_id"
+        elif role == 'mentor':
+            table = "mentors"
+            id_col = "mentor_id"
+        elif role == 'coordinator':
+            table = "coordinators"
+            id_col = "coordinator_id"
+
+        # Check if user exists with this ID and Email
+        user = conn.execute(
+            f'SELECT * FROM {table} WHERE {id_col} = ? AND email = ?',
+            (user_id, email)
+        ).fetchone()
+
+        if user:
+            # Update password
+            conn.execute(
+                f'UPDATE {table} SET password = ? WHERE {id_col} = ?',
+                (new_password, user_id)
+            )
+            conn.commit()
+            conn.close()
+            return render_template('forgot_password.html', 
+                                   success='Password has been reset successfully!')
+        
+        conn.close()
+        return render_template('forgot_password.html', 
+                               error='Invalid ID or Email combination')
+
+    return render_template('forgot_password.html')
 
 # ============================================================
 # STUDENT REGISTRATION
@@ -404,6 +455,87 @@ def coordinator_review(submission_id):
     return render_template('coordinator_review.html', submission=submission)
 
 # ============================================================
+# COLLEGE DASHBOARD
+# ============================================================
+
+@app.route('/college/dashboard')
+def college_dashboard():
+
+    submissions = get_pending_submissions_for_college()
+
+    conn = get_db()
+    watchlist = conn.execute(
+        'SELECT * FROM students WHERE watch_list = 1'
+    ).fetchall()
+    conn.close()
+
+    return render_template('college_dashboard.html',
+                           submissions=submissions,
+                           watchlist=watchlist,
+                           name=session['name'])
+
+# ============================================================
+# COLLEGE FINAL APPROVAL
+# ============================================================
+
+@app.route('/college/review/<int:submission_id>', methods=['GET', 'POST'])
+def college_review(submission_id):
+    if session.get('role') != 'college':
+        return redirect(url_for('login'))
+
+    conn = get_db()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        points_awarded = int(request.form.get('points_awarded', 0))
+
+        if action == 'approve':
+            # Update submission
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'approved', points_awarded = ?,
+                reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (points_awarded,
+                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  submission_id))
+
+            # Get student id from submission
+            submission = conn.execute(
+                'SELECT student_id FROM submissions WHERE submission_id = ?',
+                (submission_id,)
+            ).fetchone()
+
+            # Add points to student
+            conn.commit()
+            conn.close()
+            update_student_points(submission['student_id'], points_awarded)
+
+        else:
+            conn.execute('''
+                UPDATE submissions
+                SET status = 'rejected', reviewed_date = ?
+                WHERE submission_id = ?
+            ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
+            conn.commit()
+            conn.close()
+
+        return redirect(url_for('college_dashboard'))
+
+    submission = conn.execute('''
+        SELECT s.*, a.activity_name, a.category, 
+               a.max_points_participant, a.max_points_organizer,
+               st.name as student_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.submission_id = ?
+    ''', (submission_id,)).fetchone()
+    conn.close()
+
+    return render_template('college_review.html', submission=submission)
+
+# ============================================================
 # WATCHLIST
 # ============================================================
 @app.route('/coordinator/watchlist')
@@ -418,6 +550,8 @@ def watchlist():
     conn.close()
 
     return render_template('watchlist.html', students=students)
+
+    # ============================================================
 # ============================================================
 # ADMIN LOGIN
 # ============================================================
@@ -546,7 +680,6 @@ def admin_add_coordinator():
 def admin_delete(user_type, user_id):
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
-
     conn = get_db()
     if user_type == 'mentor':
         conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
@@ -560,7 +693,6 @@ def admin_delete(user_type, user_id):
     conn.close()
 
     return redirect(url_for('admin_dashboard'))
-
 # ============================================================
 # ADMIN — MENTOR ASSIGNMENTS
 # ============================================================
@@ -767,6 +899,125 @@ def bulk_assign_save():
                             department=department,
                             semester=semester,
                             success=assigned_count))
+# ============================================================
+# ADMIN — ACADEMIC CALENDAR
+# ============================================================
+
+@app.route('/admin/calendar', methods=['GET', 'POST'])
+def admin_calendar():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    from database import get_all_calendars, get_current_calendar
+
+    if request.method == 'POST':
+        semester = request.form.get('semester')
+        academic_year = request.form.get('academic_year')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        is_current = 1 if request.form.get('is_current') else 0
+
+        conn = get_db()
+
+        # If setting as current, unset all others first
+        if is_current:
+            conn.execute(
+                'UPDATE academic_calendar SET is_current = 0'
+            )
+
+        conn.execute('''
+            INSERT INTO academic_calendar
+            (semester, academic_year, start_date,
+             end_date, is_current, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (semester, academic_year, start_date,
+              end_date, is_current,
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for('admin_calendar'))
+
+    calendars = get_all_calendars()
+    current = get_current_calendar()
+    return render_template('admin_calendar.html',
+                           calendars=calendars,
+                           current=current)
+
+
+@app.route('/admin/calendar/set_current/<int:calendar_id>')
+def set_current_calendar(calendar_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute('UPDATE academic_calendar SET is_current = 0')
+    conn.execute(
+        'UPDATE academic_calendar SET is_current = 1 WHERE calendar_id = ?',
+        (calendar_id,)
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_calendar'))
+
+
+@app.route('/admin/calendar/delete/<int:calendar_id>')
+def delete_calendar(calendar_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    conn = get_db()
+    conn.execute(
+        'DELETE FROM academic_calendar WHERE calendar_id = ?',
+        (calendar_id,)
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_calendar'))
+
+
+# ============================================================
+# ADMIN — ADVANCE SEMESTER
+# ============================================================
+
+@app.route('/admin/advance_semester', methods=['GET', 'POST'])
+def advance_semester():
+    if session.get('role') != 'admin':
+        return redirect(url_for('admin_login'))
+
+    from database import (get_current_calendar,
+                          get_eligible_students, advance_students)
+
+    current_calendar = get_current_calendar()
+    eligible_students = []
+    success_message = None
+
+    if current_calendar:
+        eligible_students = get_eligible_students(
+            current_calendar['semester']
+        )
+
+    if request.method == 'POST':
+        # Get selected student IDs from form
+        selected_ids = request.form.getlist('student_ids')
+        academic_year = request.form.get('academic_year')
+
+        if selected_ids:
+            advance_students(selected_ids, academic_year)
+            success_message = (
+                f"Successfully advanced {len(selected_ids)} "
+                f"students to next semester!"
+            )
+            # Refresh eligible students list
+            if current_calendar:
+                eligible_students = get_eligible_students(
+                    current_calendar['semester']
+                )
+
+    return render_template('admin_advance_semester.html',
+                           current_calendar=current_calendar,
+                           eligible_students=eligible_students,
+                           success_message=success_message)
 
 # ============================================================
 # RUN APP

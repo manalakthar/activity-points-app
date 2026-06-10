@@ -9,7 +9,12 @@
         align-items: center;
         justify-content: center;
         min-height: 100vh;
-        background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+        background: linear-gradient(135deg, var(--nav-bg) 0%, var(--primary-color) 100%);
+        transition: background 0.3s;
+    }
+
+    [data-theme="dark"] body {
+        background: #1a202c;
     }
 
     main {
@@ -19,22 +24,23 @@
     }
 
     .register-card {
-        background: white;
+        background: var(--card-bg);
         border-radius: 20px;
         padding: 36px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        transition: background-color 0.3s;
     }
 
     .register-title {
         font-size: 22px;
         font-weight: 700;
-        color: #1a202c;
+        color: var(--text-main);
         margin-bottom: 4px;
     }
 
     .register-subtitle {
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
         margin-bottom: 28px;
     }
 
@@ -45,17 +51,18 @@
     }
 
     .photo-upload {
-        border: 2px dashed #e2e8f0;
+        border: 2px dashed var(--border-color);
         border-radius: 12px;
         padding: 24px;
         text-align: center;
         cursor: pointer;
         transition: all 0.2s;
+        background: rgba(49, 130, 206, 0.02);
     }
 
     .photo-upload:hover {
-        border-color: #3182ce;
-        background: #ebf8ff;
+        border-color: var(--primary-color);
+        background: rgba(49, 130, 206, 0.05);
     }
 
     .photo-upload-icon {
@@ -65,22 +72,22 @@
 
     .photo-upload-text {
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .photo-upload-text strong {
-        color: #3182ce;
+        color: var(--primary-color);
     }
 
     .login-link {
         text-align: center;
         margin-top: 20px;
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .login-link a {
-        color: #3182ce;
+        color: var(--primary-color);
         font-weight: 600;
         text-decoration: none;
     }
@@ -88,6 +95,14 @@
 {% endblock %}
 
 {% block content %}
+<div style="text-align: center; margin-bottom: 32px;">
+    <img src="{{ url_for('static', filename='logo.png') }}" 
+         onerror="this.style.display='none'; document.getElementById('reg-fallback').style.display='flex';"
+         alt="SJEC Logo" style="height: 60px; width: auto; margin: 0 auto;">
+    <div id="reg-fallback" class="nav-logo" style="display: none; margin: 0 auto; width: 50px; height: 50px;">SAP</div>
+    <h1 style="color: white; font-size: 20px; font-weight: 700; margin-top: 12px;">Activity Points Tracker</h1>
+</div>
+
 <div class="register-card">
     <div class="register-title">Create your account</div>
     <div class="register-subtitle">Register to start tracking your activity points</div>

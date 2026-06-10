@@ -54,6 +54,26 @@ def init_db():
             department TEXT
         )
     ''')
+
+    # Academic calendar table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS academic_calendar (
+            calendar_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            semester INTEGER NOT NULL,
+            academic_year TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            is_current INTEGER DEFAULT 0,
+            created_at TEXT
+        )
+    ''')
+    # Add is_current column if it doesn't exist
+    try:
+        cursor.execute('''
+            ALTER TABLE students ADD COLUMN is_graduated INTEGER DEFAULT 0
+        ''')
+    except:
+        pass
     # Admin table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS admins (
@@ -97,6 +117,25 @@ def init_db():
             max_points_organizer INTEGER NOT NULL
         )
     ''')
+
+    # Admin table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admins (
+            admin_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    ''')
+
+    # Add default admin account
+    try:
+        cursor.execute('''
+            INSERT INTO admins (admin_id, name, email, password)
+            VALUES (?, ?, ?, ?)
+        ''', ('ADMIN001', 'SJEC Admin', 'admin@sjec.ac.in', 'admin123'))
+    except:
+        pass  # Admin already exists
 
     # Submissions table
     cursor.execute('''
@@ -333,6 +372,95 @@ def get_assignments_for_student(student_id):
     ''', (student_id,)).fetchall()
     conn.close()
     return assignments
+def get_current_calendar():
+    """Get the currently active semester calendar."""
+    conn = get_db()
+    calendar = conn.execute('''
+        SELECT * FROM academic_calendar
+        WHERE is_current = 1
+        ORDER BY calendar_id DESC
+        LIMIT 1
+    ''').fetchone()
+    conn.close()
+    return calendar
+
+def get_all_calendars():
+    """Get all academic calendar entries."""
+    conn = get_db()
+    calendars = conn.execute('''
+        SELECT * FROM academic_calendar
+        ORDER BY calendar_id DESC
+    ''').fetchall()
+    conn.close()
+    return calendars
+
+def get_eligible_students(current_semester):
+    """
+    Get all students eligible to advance to next semester.
+    Eligible = currently in current_semester and not graduated.
+    """
+    conn = get_db()
+
+    # Max semester depends on student type
+    students = conn.execute('''
+        SELECT * FROM students
+        WHERE semester = ?
+        AND is_graduated = 0
+        AND (
+            (student_type = 'regular' AND semester < 8)
+            OR
+            (student_type = 'lateral' AND semester < 6)
+        )
+        ORDER BY department, student_id
+    ''', (current_semester,)).fetchall()
+    conn.close()
+    return students
+
+def advance_students(student_ids, academic_year):
+    """
+    Advance selected students to next semester.
+    Also updates year when crossing semester boundary.
+    """
+    conn = get_db()
+
+    for student_id in student_ids:
+        student = conn.execute(
+            'SELECT * FROM students WHERE student_id = ?',
+            (student_id,)
+        ).fetchone()
+
+        if not student:
+            continue
+
+        current_sem = student['semester']
+        current_year = student['year']
+        new_sem = current_sem + 1
+
+        # Calculate new year
+        # Year changes when semester crosses even to odd
+        # Sem 2→3, Sem 4→5, Sem 6→7
+        new_year = current_year
+        if current_sem in [2, 4, 6]:
+            new_year = current_year + 1
+
+        # Check if student is graduating
+        is_graduated = 0
+        if student['student_type'] == 'regular' and new_sem > 8:
+            is_graduated = 1
+            new_sem = 8  # Keep at 8
+        elif student['student_type'] == 'lateral' and new_sem > 6:
+            is_graduated = 1
+            new_sem = 6  # Keep at 6
+
+        conn.execute('''
+            UPDATE students
+            SET semester = ?, year = ?,
+                is_graduated = ?
+            WHERE student_id = ?
+        ''', (new_sem, new_year, is_graduated, student_id))
+
+    conn.commit()
+    conn.close()
 
 if __name__ == '__main__':
     init_db()

@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block title %}Academic Calendar{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">📅 Academic Calendar</div>
+    <div class="page-subtitle">
+        Set semester dates — update anytime as needed
+    </div>
+</div>
+
+<!-- Current Semester Banner -->
+{% if current %}
+<div class="card" style="background: linear-gradient(135deg,
+     #1a365d, #2b6cb0); color: white; border: none;
+     margin-bottom: 24px;">
+    <div style="display: flex; align-items: center;
+                justify-content: space-between;">
+        <div>
+            <div style="font-size: 13px; opacity: 0.8;
+                        margin-bottom: 4px;">
+                CURRENTLY ACTIVE SEMESTER
+            </div>
+            <div style="font-size: 24px; font-weight: 700;">
+                Semester {{ current.semester }} —
+                {{ current.academic_year }}
+            </div>
+            <div style="font-size: 14px; opacity: 0.85;
+                        margin-top: 8px;">
+                {{ current.start_date }} → {{ current.end_date }}
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <a href="/admin/advance_semester"
+               class="btn btn-success">
+                🎓 Advance Students →
+            </a>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    ⚠️ No active semester set yet. Add one below and mark it
+    as current.
+</div>
+{% endif %}
+
+<!-- Add New Calendar Entry -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Add Semester Dates</div>
+        <div class="card-subtitle">
+            You can add and update dates anytime — each semester
+            can have different dates
+        </div>
+    </div>
+
+    <form method="POST" action="/admin/calendar">
+        <div style="display: grid;
+                    grid-template-columns: 1fr 1fr 1fr 1fr;
+                    gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Semester</label>
+                <select name="semester" class="form-control" required>
+                    {% for sem in range(1, 9) %}
+                    <option value="{{ sem }}">Semester {{ sem }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Academic Year</label>
+                <select name="academic_year" class="form-control">
+                    <option value="2023-24">2023-24</option>
+                    <option value="2024-25">2024-25</option>
+                    <option value="2025-26" selected>2025-26</option>
+                    <option value="2026-27">2026-27</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date"
+                       class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date"
+                       class="form-control" required>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center;
+                    gap: 16px; margin-top: 8px;">
+            <label style="display: flex; align-items: center;
+                          gap: 8px; cursor: pointer;
+                          font-size: 14px; color: #4a5568;">
+                <input type="checkbox" name="is_current"
+                       style="width:18px; height:18px;">
+                Set as current active semester
+            </label>
+            <button type="submit" class="btn btn-primary">
+                + Add Semester
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Calendar History -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Semester History</div>
+        <div class="card-subtitle">
+            All semester dates — click Set Current to change
+            the active semester
+        </div>
+    </div>
+
+    {% if calendars %}
+    <table>
+        <thead>
+            <tr>
+                <th>Semester</th>
+                <th>Academic Year</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cal in calendars %}
+            <tr>
+                <td><strong>Semester {{ cal.semester }}</strong></td>
+                <td>{{ cal.academic_year }}</td>
+                <td>{{ cal.start_date }}</td>
+                <td>{{ cal.end_date }}</td>
+                <td style="font-size:13px; color:#718096;">
+                    {{ cal.start_date }} to {{ cal.end_date }}
+                </td>
+                <td>
+                    {% if cal.is_current %}
+                        <span class="badge badge-approved">
+                            ✅ Current
+                        </span>
+                    {% else %}
+                        <span class="badge badge-pending">
+                            Inactive
+                        </span>
+                    {% endif %}
+                </td>
+                <td style="display:flex; gap:8px;">
+                    {% if not cal.is_current %}
+                    <a href="/admin/calendar/set_current/{{ cal.calendar_id }}"
+                       class="btn btn-outline"
+                       style="padding:4px 12px; font-size:12px;">
+                        Set Current
+                    </a>
+                    {% endif %}
+                    <a href="/admin/calendar/delete/{{ cal.calendar_id }}"
+                       class="btn btn-danger"
+                       style="padding:4px 12px; font-size:12px;"
+                       onclick="return confirm(
+                           'Delete this calendar entry?')">
+                        Delete
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center; padding:40px; color:#718096;">
+        <div style="font-size:40px; margin-bottom:12px;">📅</div>
+        <div style="font-weight:600;">No calendar entries yet</div>
+        <div style="font-size:14px; margin-top:8px;">
+            Add semester dates above to get started
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
