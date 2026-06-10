@@ -144,7 +144,17 @@ def register():
             return redirect(url_for('login'))
 
         except Exception as e:
-            return render_template('register.html', error='Registration failed. USN or email already exists.')
+            print(f"Registration error: {e}")
+            import sqlite3 as _sqlite3
+            if isinstance(e, _sqlite3.IntegrityError) and 'UNIQUE' in str(e):
+                error_msg = 'Registration failed. A student with this USN or email already exists.'
+            else:
+                error_msg = f'Registration failed: {e}'
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return render_template('register.html', error=error_msg)
 
     return render_template('register.html')
 
@@ -245,7 +255,19 @@ def submit_claim():
             student['semester']
         )
 
-        # If no assignment found, fall back to department mentor
+        # If assigned mentor no longer exists in mentors table, clear it
+        if mentor_id:
+            conn_check = get_db()
+            exists = conn_check.execute(
+                'SELECT mentor_id FROM mentors WHERE mentor_id = ?',
+                (mentor_id,)
+            ).fetchone()
+            conn_check.close()
+            if not exists:
+                print(f"[SUBMIT] mentor_id={mentor_id} from assignment no longer exists, falling back")
+                mentor_id = None
+
+        # If no valid assignment found, fall back to department mentor
         if not mentor_id:
             conn_temp = get_db()
             mentor = conn_temp.execute(
@@ -254,6 +276,8 @@ def submit_claim():
             ).fetchone()
             conn_temp.close()
             mentor_id = mentor['mentor_id'] if mentor else None
+
+        print(f"[SUBMIT] student={session['user_id']} dept={student['department']} -> assigned mentor_id={mentor_id}")
         conn = get_db()
         conn.execute('''
             INSERT INTO submissions
@@ -430,11 +454,23 @@ def admin_login():
         email = request.form.get('email')
         password = request.form.get('password')
 
+        print(f"[ADMIN LOGIN] Received email=[{email}] password=[{password}]")
+
         conn = get_db()
         admin = conn.execute(
             'SELECT * FROM admins WHERE email = ? AND password = ?',
             (email, password)
         ).fetchone()
+
+        # Debug: also check if the email exists at all
+        admin_by_email = conn.execute(
+            'SELECT email, password FROM admins WHERE email = ?',
+            (email,)
+        ).fetchone()
+        if admin_by_email:
+            print(f"[ADMIN LOGIN] DB has email=[{admin_by_email['email']}] password=[{admin_by_email['password']}]")
+        else:
+            print(f"[ADMIN LOGIN] No admin found with email=[{email}]")
         conn.close()
 
         if admin:

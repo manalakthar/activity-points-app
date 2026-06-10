@@ -203,9 +203,9 @@ def init_db():
 
     conn.commit()
     conn.close()
-    print("✅ Database initialized successfully!")
-    print("✅ All tables created!")
-    print("✅ Activities pre-loaded!")
+    print("[OK] Database initialized successfully!")
+    print("[OK] All tables created!")
+    print("[OK] Activities pre-loaded!")
 
 # Helper functions for students
 def get_student(student_id):
