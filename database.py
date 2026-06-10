@@ -170,6 +170,16 @@ def init_db():
     except:
         pass  # Column already exists
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notification_reads (
+            user_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            notification_key TEXT NOT NULL,
+            read_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, role, notification_key)
+        )
+    ''')
+
     # Pre-fill activities table with all activities from the policy
     cursor.execute("SELECT COUNT(*) FROM activities")
     count = cursor.fetchone()[0]
@@ -267,6 +277,40 @@ def update_student_points(student_id, points_to_add):
 
     conn.commit()
     conn.close()
+
+def sync_student_total_points(student_id):
+    """Recalculate total_points from approved submissions."""
+    conn = get_db()
+    earned = conn.execute('''
+        SELECT COALESCE(SUM(points_awarded), 0) as total
+        FROM submissions
+        WHERE student_id = ? AND status = 'approved'
+    ''', (student_id,)).fetchone()['total']
+
+    conn.execute(
+        'UPDATE students SET total_points = ? WHERE student_id = ?',
+        (earned, student_id)
+    )
+
+    student = conn.execute(
+        'SELECT * FROM students WHERE student_id = ?',
+        (student_id,)
+    ).fetchone()
+
+    if student['semester'] >= 6 and student['total_points'] < student['points_required']:
+        conn.execute(
+            'UPDATE students SET watch_list = 1 WHERE student_id = ?',
+            (student_id,)
+        )
+    elif student['total_points'] >= student['points_required']:
+        conn.execute(
+            'UPDATE students SET watch_list = 0 WHERE student_id = ?',
+            (student_id,)
+        )
+
+    conn.commit()
+    conn.close()
+    return earned
 
 # Helper functions for submissions
 def get_submissions_by_student(student_id):
@@ -459,6 +503,29 @@ def advance_students(student_ids, academic_year):
             WHERE student_id = ?
         ''', (new_sem, new_year, is_graduated, student_id))
 
+    conn.commit()
+    conn.close()
+
+def get_read_notification_keys(user_id, role):
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT notification_key FROM notification_reads
+        WHERE user_id = ? AND role = ?
+    ''', (user_id, role)).fetchall()
+    conn.close()
+    return {row['notification_key'] for row in rows}
+
+def mark_notifications_read(user_id, role, keys):
+    if not keys:
+        return
+    conn = get_db()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for key in keys:
+        conn.execute('''
+            INSERT OR REPLACE INTO notification_reads
+            (user_id, role, notification_key, read_at)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, role, key, now))
     conn.commit()
     conn.close()
 

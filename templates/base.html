@@ -488,7 +488,7 @@
             position: absolute;
             top: 56px; right: 80px;
             width: 340px;
-            background: white;
+            background: var(--card-bg);
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.18);
             z-index: 999;
@@ -499,20 +499,21 @@
             padding: 14px 18px;
             font-weight: 600;
             font-size: 14px;
-            border-bottom: 1px solid #e2e8f0;
-            color: #1a202c;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
         }
         .notif-item {
             padding: 12px 18px;
             font-size: 13px;
-            border-bottom: 1px solid #f0f4f8;
+            border-bottom: 1px solid var(--border-color);
             line-height: 1.5;
+            color: var(--text-main);
         }
         .notif-item.success { border-left: 4px solid #38a169; }
         .notif-item.error   { border-left: 4px solid #e53e3e; }
         .notif-item.warning { border-left: 4px solid #d69e2e; }
         .notif-item.info    { border-left: 4px solid #3182ce; }
-        .notif-empty { padding: 24px; text-align: center; color: #a0aec0; font-size: 13px; }
+        .notif-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
     </style>
     <script>
         // Apply theme immediately to prevent flicker
@@ -552,8 +553,25 @@
         </div>
     </a>
     <div class="nav-links">
+        {% if session.get('name') %}
         <span class="nav-link">👋 {{ session.get('name') }}</span>
+        {% if session.get('user_id') %}
+        <div class="notif-bell" onclick="toggleNotif()" id="notif-bell">
+            🔔
+            <div class="notif-badge" id="notif-badge"></div>
+        </div>
+        <div class="notif-dropdown" id="notif-dropdown">
+            <div class="notif-header">🔔 Notifications</div>
+            <div id="notif-list"><div class="notif-empty">Loading...</div></div>
+        </div>
+        {% endif %}
         <a href="/logout" class="nav-link logout">Logout</a>
+        {% else %}
+        <a href="/login" class="nav-link">Login</a>
+        {% endif %}
+        <button id="theme-btn" class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode">
+            🌙
+        </button>
     </div>
 </nav>
 
@@ -562,18 +580,32 @@
 </main>
 
 <script>
+  {% if session.get('user_id') %}
   function toggleNotif() {
       const dropdown = document.getElementById('notif-dropdown');
-      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-      loadNotifications();
+      const isOpen = dropdown.style.display === 'block';
+      dropdown.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) {
+          loadNotifications(false);
+      }
   }
 
-  function loadNotifications() {
+  function markNotificationsRead(ids) {
+      if (!ids.length) return;
+      fetch('/notifications/read', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({keys: ids})
+      });
+  }
+
+  function loadNotifications(autoOpen) {
       fetch('/notifications')
           .then(res => res.json())
           .then(data => {
               const list = document.getElementById('notif-list');
               const badge = document.getElementById('notif-badge');
+              const dropdown = document.getElementById('notif-dropdown');
 
               if (data.length === 0) {
                   list.innerHTML = '<div class="notif-empty">No new notifications</div>';
@@ -583,19 +615,24 @@
                   list.innerHTML = data.map(n => `
                       <div class="notif-item ${n.type}">${n.message}</div>
                   `).join('');
+                  if (autoOpen) {
+                      dropdown.style.display = 'block';
+                  }
+                  markNotificationsRead(data.map(n => n.id));
               }
           });
   }
 
-  // Auto load on page open
-  loadNotifications();
+  loadNotifications(true);
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', function(e) {
-      if (!document.getElementById('notif-bell').contains(e.target)) {
-          document.getElementById('notif-dropdown').style.display = 'none';
+      const bell = document.getElementById('notif-bell');
+      const dropdown = document.getElementById('notif-dropdown');
+      if (bell && dropdown && !bell.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.style.display = 'none';
       }
   });
+  {% endif %}
 </script>
 
 {% block extra_js %}{% endblock %}

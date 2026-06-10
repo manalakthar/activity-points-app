@@ -8,16 +8,32 @@
     <div class="page-subtitle">Complete activity history and details</div>
 </div>
 
+{% if success_message %}
+<div class="alert alert-success">{{ success_message }}</div>
+{% endif %}
+{% if error_message %}
+<div class="alert alert-error">{{ error_message }}</div>
+{% endif %}
+
 <!-- Profile Card -->
 <div class="card">
-    <div style="display: flex; align-items: center; gap: 20px;">
-        <div style="width: 72px; height: 72px; background: #ebf8ff;
-                    border-radius: 50%; display: flex; align-items: center;
-                    justify-content: center; font-size: 28px; font-weight: 700;
-                    color: #2b6cb0; flex-shrink: 0;">
-            {{ student.name[0].upper() }}
+    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+        <div style="width: 96px; height: 96px; border-radius: 50%;
+                    overflow: hidden; flex-shrink: 0;
+                    border: 3px solid var(--border-color);
+                    background: #ebf8ff; display: flex;
+                    align-items: center; justify-content: center;">
+            {% if has_photo %}
+            <img src="{{ url_for('student_profile_photo') }}"
+                 alt="Profile photo"
+                 style="width: 100%; height: 100%; object-fit: cover;">
+            {% else %}
+            <span style="font-size: 36px; font-weight: 700; color: #2b6cb0;">
+                {{ student.name[0].upper() }}
+            </span>
+            {% endif %}
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 200px;">
             <div style="font-size: 20px; font-weight: 700;">
                 {{ student.name }}
             </div>
@@ -37,6 +53,30 @@
                 of {{ student.points_required }} points
             </div>
         </div>
+    </div>
+
+    <div style="margin-top: 24px; padding-top: 20px;
+                border-top: 1px solid var(--border-color);">
+        <div style="font-weight: 600; margin-bottom: 8px; color: var(--text-main);">
+            Profile Photo
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            Upload a clear front-facing photo. This is used for identity
+            verification when you submit activity certificates.
+        </div>
+        <form method="POST" action="{{ url_for('student_profile') }}"
+              enctype="multipart/form-data"
+              style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+            <label class="btn btn-outline" style="cursor: pointer; margin: 0;">
+                Choose Photo
+                <input type="file" name="face_photo" accept="image/jpeg,image/png"
+                       style="display: none;" onchange="updatePhotoLabel(this)">
+            </label>
+            <span id="photo-name" style="font-size: 13px; color: var(--text-muted);">
+                {% if has_photo %}Current photo on file{% else %}No photo uploaded yet{% endif %}
+            </span>
+            <button type="submit" class="btn btn-primary">Upload Photo</button>
+        </form>
     </div>
 
     <div style="margin-top: 20px;">
@@ -152,4 +192,16 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePhotoLabel(input) {
+    const label = document.getElementById('photo-name');
+    if (input.files && input.files[0]) {
+        label.textContent = input.files[0].name + ' selected';
+        label.style.color = '#38a169';
+    }
+}
+</script>
 {% endblock %}

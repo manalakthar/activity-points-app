@@ -10,9 +10,28 @@
     </div>
 </div>
 
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if mentor_assigned %}
+<div class="alert alert-success">
+    Your assigned mentor for Semester {{ student.semester }}:
+    <strong>{{ mentor_name }}</strong>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    You cannot submit an activity claim yet because no faculty mentor
+    has been assigned to you for Semester {{ student.semester }}.
+    Please contact your department coordinator or college admin to
+    get a mentor assigned before submitting.
+</div>
+{% endif %}
+
 <div class="card">
     <form method="POST" action="/student/submit"
-          enctype="multipart/form-data">
+          enctype="multipart/form-data"
+          {% if not mentor_assigned %}style="opacity: 0.55; pointer-events: none;"{% endif %}>
 
         <div class="form-group">
             <label class="form-label">Activity</label>

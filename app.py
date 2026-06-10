@@ -3,14 +3,15 @@ from datetime import datetime
 import os
 from database import (
     init_db, get_db, get_student, get_student_by_email,
-    update_student_points, get_submissions_by_student,
+    get_submissions_by_student,
+    sync_student_total_points,
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
     get_pending_submissions_for_college,
     get_all_activities, get_mentor_for_student,
     get_all_assignments, get_current_calendar,
     get_all_calendars, get_eligible_students,
-    advance_students
+    advance_students, get_read_notification_keys, mark_notifications_read
 )
 
 app = Flask(__name__)
@@ -19,8 +20,48 @@ app.secret_key = 'sjec_sap_secret_key'
 # Folders
 UPLOAD_FOLDER = 'uploads'
 KNOWN_FACES_DIR = 'known_faces'
+ALLOWED_PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
+
+
+def save_student_face_photo(student_id, face_photo):
+    """Save a student's reference face photo for profile and verification."""
+    if not face_photo or not face_photo.filename:
+        return None, 'No photo selected.'
+
+    extension = os.path.splitext(face_photo.filename)[1].lower()
+    if extension not in ALLOWED_PHOTO_EXTENSIONS:
+        return None, 'Please upload a JPG or PNG image.'
+
+    for ext in ALLOWED_PHOTO_EXTENSIONS:
+        old_path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{ext}')
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{extension}')
+    face_photo.save(path)
+    return path, None
+
+
+def resolve_student_mentor(student):
+    """Return assigned mentor for the student's current semester, if any."""
+    mentor_id = get_mentor_for_student(
+        student['student_id'], student['semester']
+    )
+    if not mentor_id:
+        return None, None
+
+    conn = get_db()
+    mentor = conn.execute(
+        'SELECT mentor_id, name FROM mentors WHERE mentor_id = ?',
+        (mentor_id,)
+    ).fetchone()
+    conn.close()
+
+    if not mentor:
+        return None, None
+    return mentor['mentor_id'], mentor['name']
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -172,13 +213,14 @@ def register():
         # Handle face photo upload
         face_photo = request.files.get('face_photo')
         face_photo_path = None
+        photo_error = None
 
-        if face_photo:
-            extension = os.path.splitext(face_photo.filename)[1].lower()
-            face_photo_path = os.path.join(
-                KNOWN_FACES_DIR, f'{student_id}{extension}'
+        if face_photo and face_photo.filename:
+            face_photo_path, photo_error = save_student_face_photo(
+                student_id, face_photo
             )
-            face_photo.save(face_photo_path)
+            if photo_error:
+                return render_template('register.html', error=photo_error)
 
         try:
             conn = get_db()
@@ -217,28 +259,80 @@ def student_dashboard():
     if session.get('role') != 'student':
         return redirect(url_for('login'))
 
+    sync_student_total_points(session['user_id'])
     student = get_student(session['user_id'])
     submissions = get_submissions_by_student(session['user_id'])
+    mentor_id, mentor_name = resolve_student_mentor(student)
 
     return render_template('student_dashboard.html',
                            student=student,
-                           submissions=submissions)
+                           submissions=submissions,
+                           mentor_assigned=mentor_id is not None,
+                           mentor_name=mentor_name)
 
 # ============================================================
 # STUDENT PROFILE
 # ============================================================
 
-@app.route('/student/profile')
+@app.route('/student/profile', methods=['GET', 'POST'])
 def student_profile():
     if session.get('role') != 'student':
         return redirect(url_for('login'))
 
-    student = get_student(session['user_id'])
-    submissions = get_submissions_by_student(session['user_id'])
+    student_id = session['user_id']
+    success_message = None
+    error_message = None
+
+    if request.method == 'POST':
+        face_photo = request.files.get('face_photo')
+        face_photo_path, photo_error = save_student_face_photo(
+            student_id, face_photo
+        )
+
+        if photo_error:
+            error_message = photo_error
+        else:
+            conn = get_db()
+            conn.execute('''
+                UPDATE students SET face_photo_path = ?
+                WHERE student_id = ?
+            ''', (face_photo_path, student_id))
+            conn.commit()
+            conn.close()
+            success_message = 'Profile photo updated successfully.'
+
+    sync_student_total_points(student_id)
+    student = get_student(student_id)
+    submissions = get_submissions_by_student(student_id)
+    has_photo = (
+        student['face_photo_path']
+        and os.path.exists(student['face_photo_path'])
+    )
 
     return render_template('student_profile.html',
                            student=student,
-                           submissions=submissions)
+                           submissions=submissions,
+                           has_photo=has_photo,
+                           success_message=success_message,
+                           error_message=error_message)
+
+
+@app.route('/student/profile/photo')
+def student_profile_photo():
+    if session.get('role') != 'student':
+        return redirect(url_for('login'))
+
+    student = get_student(session['user_id'])
+    if not student['face_photo_path']:
+        return '', 404
+
+    photo_path = student['face_photo_path']
+    if not os.path.exists(photo_path):
+        return '', 404
+
+    directory = os.path.dirname(photo_path) or KNOWN_FACES_DIR
+    filename = os.path.basename(photo_path)
+    return send_from_directory(directory, filename)
 
 # ============================================================
 # ACTIVITIES PAGE
@@ -258,7 +352,25 @@ def submit_claim():
     if session.get('role') != 'student':
         return redirect(url_for('login'))
 
+    student = get_student(session['user_id'])
+    mentor_id, mentor_name = resolve_student_mentor(student)
+    activities = get_all_activities()
+
     if request.method == 'POST':
+        if not mentor_id:
+            return render_template(
+                'submit_claim.html',
+                activities=activities,
+                student=student,
+                mentor_assigned=False,
+                mentor_name=None,
+                error=(
+                    'You cannot submit this activity because no faculty '
+                    'mentor has been assigned to you for this semester. '
+                    'Please contact your department coordinator or admin.'
+                ),
+            )
+
         activity_id = request.form.get('activity_id')
         role = request.form.get('role')
         organized_by = request.form.get('organized_by')
@@ -298,36 +410,6 @@ def submit_claim():
             except Exception as e:
              print(f"Face recognition error: {e}")
 
-        # Get assigned mentor for this student's current semester
-        student = get_student(session['user_id'])
-        mentor_id = get_mentor_for_student(
-            session['user_id'],
-            student['semester']
-        )
-
-        # If assigned mentor no longer exists in mentors table, clear it
-        if mentor_id:
-            conn_check = get_db()
-            exists = conn_check.execute(
-                'SELECT mentor_id FROM mentors WHERE mentor_id = ?',
-                (mentor_id,)
-            ).fetchone()
-            conn_check.close()
-            if not exists:
-                print(f"[SUBMIT] mentor_id={mentor_id} from assignment no longer exists, falling back")
-                mentor_id = None
-
-        # If no valid assignment found, fall back to department mentor
-        if not mentor_id:
-            conn_temp = get_db()
-            mentor = conn_temp.execute(
-                'SELECT mentor_id FROM mentors WHERE department = ?',
-                (student['department'],)
-            ).fetchone()
-            conn_temp.close()
-            mentor_id = mentor['mentor_id'] if mentor else None
-
-        print(f"[SUBMIT] student={session['user_id']} dept={student['department']} -> assigned mentor_id={mentor_id}")
         conn = get_db()
         conn.execute('''
             INSERT INTO submissions
@@ -345,8 +427,13 @@ def submit_claim():
 
         return redirect(url_for('student_dashboard'))
 
-    activities = get_all_activities()
-    return render_template('submit_claim.html', activities=activities)
+    return render_template(
+        'submit_claim.html',
+        activities=activities,
+        student=student,
+        mentor_assigned=mentor_id is not None,
+        mentor_name=mentor_name,
+    )
 
 # ============================================================
 # MENTOR DASHBOARD
@@ -449,9 +536,7 @@ def coordinator_review(submission_id):
 
             conn.commit()
             conn.close()
-            update_student_points(
-                submission['student_id'], points_awarded
-            )
+            sync_student_total_points(submission['student_id'])
 
         else:
             conn.execute('''
@@ -536,7 +621,7 @@ def college_review(submission_id):
             # Add points to student
             conn.commit()
             conn.close()
-            update_student_points(submission['student_id'], points_awarded)
+            sync_student_total_points(submission['student_id'])
 
         else:
             conn.execute('''
@@ -1067,64 +1152,112 @@ def get_notifications():
     if not session.get('user_id'):
         return jsonify([])
 
+    user_id = session['user_id']
+    role = session.get('role')
+    read_keys = get_read_notification_keys(user_id, role)
+
     conn = get_db()
     notifications = []
 
-    if session.get('role') == 'student':
-        # Notify student about reviewed submissions
+    if role == 'student':
         reviewed = conn.execute('''
             SELECT s.submission_id, a.activity_name, s.status, s.points_awarded
             FROM submissions s
             JOIN activities a ON s.activity_id = a.activity_id
             WHERE s.student_id = ?
             AND s.status IN ('approved', 'rejected', 'mentor_approved')
-        ''', (session['user_id'],)).fetchall()
+        ''', (user_id,)).fetchall()
 
         for r in reviewed:
+            notif_id = f"s-{r['submission_id']}-{r['status']}"
+            if notif_id in read_keys:
+                continue
             if r['status'] == 'approved':
                 notifications.append({
+                    'id': notif_id,
                     'message': f"✅ Your claim for '{r['activity_name']}' was approved! {r['points_awarded']} pts awarded.",
                     'type': 'success'
                 })
             elif r['status'] == 'rejected':
                 notifications.append({
+                    'id': notif_id,
                     'message': f"❌ Your claim for '{r['activity_name']}' was rejected.",
                     'type': 'error'
                 })
             elif r['status'] == 'mentor_approved':
                 notifications.append({
+                    'id': notif_id,
                     'message': f"🔄 Your claim for '{r['activity_name']}' is under coordinator review.",
                     'type': 'info'
                 })
 
-    elif session.get('role') == 'mentor':
-        # Notify mentor about pending submissions
+    elif role == 'mentor':
         pending = conn.execute('''
-            SELECT COUNT(*) as count FROM submissions
+            SELECT submission_id FROM submissions
             WHERE mentor_id = ? AND status = 'pending'
-        ''', (session['user_id'],)).fetchone()
+            ORDER BY submission_id
+        ''', (user_id,)).fetchall()
 
-        if pending['count'] > 0:
+        unread_ids = [
+            p['submission_id'] for p in pending
+            if f"m-pending-{p['submission_id']}" not in read_keys
+        ]
+        if unread_ids:
+            notif_id = 'm-pending-' + '-'.join(str(i) for i in unread_ids)
             notifications.append({
-                'message': f"📋 You have {pending['count']} pending submission(s) to review.",
+                'id': notif_id,
+                'message': f"📋 You have {len(unread_ids)} pending submission(s) to review.",
                 'type': 'warning'
             })
 
-    elif session.get('role') == 'departmental':
-        # Notify coordinator about pending submissions
+    elif role in ('departmental', 'college'):
         pending = conn.execute('''
-            SELECT COUNT(*) as count FROM submissions
+            SELECT submission_id FROM submissions
             WHERE status = 'mentor_approved'
-        ''').fetchone()
+            ORDER BY submission_id
+        ''').fetchall()
 
-        if pending['count'] > 0:
+        unread_ids = [
+            p['submission_id'] for p in pending
+            if f"c-pending-{p['submission_id']}" not in read_keys
+        ]
+        if unread_ids:
+            notif_id = 'c-pending-' + '-'.join(str(i) for i in unread_ids)
             notifications.append({
-                'message': f"📋 {pending['count']} submission(s) are waiting for your review.",
+                'id': notif_id,
+                'message': f"📋 {len(unread_ids)} submission(s) are waiting for your review.",
                 'type': 'warning'
             })
 
     conn.close()
     return jsonify(notifications)
+
+
+@app.route('/notifications/read', methods=['POST'])
+def read_notifications():
+    if not session.get('user_id'):
+        return jsonify({'ok': False}), 401
+
+    data = request.get_json(silent=True) or {}
+    keys = data.get('keys', [])
+    expanded_keys = []
+
+    for key in keys:
+        if key.startswith('m-pending-'):
+            suffix = key[len('m-pending-'):]
+            if suffix:
+                for submission_id in suffix.split('-'):
+                    expanded_keys.append(f'm-pending-{submission_id}')
+        elif key.startswith('c-pending-'):
+            suffix = key[len('c-pending-'):]
+            if suffix:
+                for submission_id in suffix.split('-'):
+                    expanded_keys.append(f'c-pending-{submission_id}')
+        else:
+            expanded_keys.append(key)
+
+    mark_notifications_read(session['user_id'], session.get('role'), expanded_keys)
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     app.run(debug=True)

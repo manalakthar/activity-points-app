@@ -78,6 +78,13 @@
     </div>
 </div>
 
+{% if not mentor_assigned %}
+<div class="alert alert-warning">
+    No faculty mentor is assigned to you for Semester {{ student.semester }}.
+    You will not be able to submit activity claims until admin assigns one.
+</div>
+{% endif %}
+
 <!-- Quick Actions -->
 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr;
             gap: 16px; margin-bottom: 24px;">
