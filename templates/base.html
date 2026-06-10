@@ -552,24 +552,8 @@
         </div>
     </a>
     <div class="nav-links">
-        {% if session.get('user_id') %}
-            <span class="nav-link">👋 {{ session.get('name') }}</span>
-            <!-- Notification Bell -->
-        <div class="notif-bell" onclick="toggleNotif()" id="notif-bell">
-            🔔
-            <div class="notif-badge" id="notif-badge"></div>
-        </div>
-
-        <!-- Notification Dropdown -->
-        <div class="notif-dropdown" id="notif-dropdown">
-            <div class="notif-header">🔔 Notifications</div>
-            <div id="notif-list"><div class="notif-empty">Loading...</div></div>
-        </div>
+        <span class="nav-link">👋 {{ session.get('name') }}</span>
         <a href="/logout" class="nav-link logout">Logout</a>
-        {% endif %}
-        <button id="theme-btn" class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode">
-            🌙
-        </button>
     </div>
 </nav>
 
