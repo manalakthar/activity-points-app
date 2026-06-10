@@ -6,6 +6,7 @@ from database import (
     update_student_points, get_submissions_by_student,
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
+    get_pending_submissions_for_college,
     get_all_activities, get_mentor_for_student,
     get_all_assignments, get_current_calendar,
     get_all_calendars, get_eligible_students,
@@ -484,6 +485,8 @@ def coordinator_review(submission_id):
 
 @app.route('/college/dashboard')
 def college_dashboard():
+    if session.get('role') != 'college':
+        return redirect(url_for('login'))
 
     submissions = get_pending_submissions_for_college()
 
