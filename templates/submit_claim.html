@@ -1,17 +1,30 @@
 {% extends 'base.html' %}
 
-{% block title %}Submit Activity{% endblock %}
+{% block title %}{% if resubmit_submission %}Resubmit Activity{% else %}Submit Activity{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <div class="page-title">Submit Activity Claim</div>
+    <div class="page-title">
+        {% if resubmit_submission %}Resubmit Activity Claim{% else %}Submit Activity Claim{% endif %}
+    </div>
     <div class="page-subtitle">
-        Fill in the details and upload your certificate
+        {% if resubmit_submission %}
+            Update your claim and send it back for review
+        {% else %}
+            Fill in the details and upload your certificate
+        {% endif %}
     </div>
 </div>
 
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if resubmit_submission and resubmit_submission.rejection_note %}
+<div class="alert alert-warning">
+    <strong>Previous rejection reason:</strong>
+    {{ resubmit_submission.rejection_note }}
+</div>
 {% endif %}
 
 {% if mentor_assigned %}
@@ -29,7 +42,8 @@
 {% endif %}
 
 <div class="card">
-    <form method="POST" action="/student/submit"
+    <form method="POST"
+          action="{% if resubmit_submission %}{{ url_for('resubmit_claim', submission_id=resubmit_submission.submission_id) }}{% else %}{{ url_for('submit_claim') }}{% endif %}"
           enctype="multipart/form-data"
           {% if not mentor_assigned %}style="opacity: 0.55; pointer-events: none;"{% endif %}>
 
@@ -44,7 +58,8 @@
                     {% for activity in items %}
                     <option value="{{ activity.activity_id }}"
                             data-participant="{{ activity.max_points_participant }}"
-                            data-organizer="{{ activity.max_points_organizer }}">
+                            data-organizer="{{ activity.max_points_organizer }}"
+                            {% if resubmit_submission and resubmit_submission.activity_id == activity.activity_id %}selected{% endif %}>
                         {{ activity.activity_name }}
                     </option>
                     {% endfor %}
@@ -62,7 +77,8 @@
                               border-radius: 10px; cursor: pointer;
                               transition: all 0.2s;">
                     <input type="radio" name="role" value="participant"
-                           checked onchange="updatePoints()">
+                           {% if not resubmit_submission or resubmit_submission.role == 'participant' %}checked{% endif %}
+                           onchange="updatePoints()">
                     <div>
                         <div style="font-weight: 600; font-size: 14px;">
                             Participant
@@ -78,6 +94,7 @@
                               border-radius: 10px; cursor: pointer;
                               transition: all 0.2s;">
                     <input type="radio" name="role" value="organizer"
+                           {% if resubmit_submission and resubmit_submission.role == 'organizer' %}checked{% endif %}
                            onchange="updatePoints()">
                     <div>
                         <div style="font-weight: 600; font-size: 14px;">
@@ -97,12 +114,14 @@
             <div class="form-group">
                 <label class="form-label">Organized By</label>
                 <input type="text" name="organized_by" class="form-control"
-                       placeholder="e.g. SJEC NSS, IEEE" required>
+                       placeholder="e.g. SJEC NSS, IEEE" required
+                       value="{{ resubmit_submission.organized_by if resubmit_submission else '' }}">
             </div>
             <div class="form-group">
                 <label class="form-label">Date of Activity</label>
                 <input type="date" name="activity_date"
-                       class="form-control" required>
+                       class="form-control" required
+                       value="{{ resubmit_submission.activity_date if resubmit_submission else '' }}">
             </div>
         </div>
 
@@ -112,18 +131,28 @@
                 <label class="form-label">Duration (hours)</label>
                 <input type="number" name="duration_hours"
                        class="form-control" min="1" placeholder="e.g. 6"
-                       required>
+                       required
+                       value="{{ resubmit_submission.duration_hours if resubmit_submission else '' }}">
             </div>
             <div class="form-group">
                 <label class="form-label">Points Claimed</label>
                 <input type="number" name="points_claimed"
                        id="points_claimed" class="form-control"
-                       placeholder="Auto-filled" required>
+                       placeholder="Auto-filled" required
+                       value="{{ resubmit_submission.points_claimed if resubmit_submission else '' }}">
             </div>
         </div>
 
         <div class="form-group">
-            <label class="form-label">Upload Certificate</label>
+            <label class="form-label">
+                {% if resubmit_submission %}Upload New Certificate (optional){% else %}Upload Certificate{% endif %}
+            </label>
+            {% if resubmit_submission and resubmit_submission.certificate_path %}
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+                Current certificate on file. Upload a new file only if you
+                want to replace it.
+            </div>
+            {% endif %}
             <div style="border: 2px dashed #e2e8f0; border-radius: 12px;
                         padding: 24px; text-align: center; cursor: pointer;
                         transition: all 0.2s;"
@@ -146,7 +175,8 @@
             <label style="display: flex; align-items: center; gap: 10px;
                           cursor: pointer;">
                 <input type="checkbox" name="protsaha_updated"
-                       style="width: 18px; height: 18px;">
+                       style="width: 18px; height: 18px;"
+                       {% if resubmit_submission and resubmit_submission.protsaha_updated %}checked{% endif %}>
                 <span style="font-size: 14px; color: #4a5568;">
                     I confirm that I have updated my Protsaha book
                     with this activity
@@ -156,9 +186,9 @@
 
         <div style="display: flex; gap: 12px;">
             <button type="submit" class="btn btn-primary">
-                Submit Claim →
+                {% if resubmit_submission %}Resubmit Claim →{% else %}Submit Claim →{% endif %}
             </button>
-            <a href="/student/dashboard" class="btn btn-outline">
+            <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline">
                 Cancel
             </a>
         </div>
@@ -190,12 +220,19 @@ function updateFileLabel(input) {
     const label = document.getElementById('file-name');
     if (input.files && input.files[0]) {
         label.style.display = 'block';
-        label.textContent = '✅ ' + input.files[0].name + ' selected';
+        label.textContent = input.files[0].name + ' selected';
     }
 }
 
 document.querySelectorAll('[name="role"]').forEach(radio => {
     radio.addEventListener('change', updatePoints);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const activitySelect = document.querySelector('[name="activity_id"]');
+    if (activitySelect.value) {
+        updatePoints();
+    }
 });
 </script>
 {% endblock %}
