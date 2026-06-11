@@ -2,6 +2,8 @@ import face_recognition
 import os
 import numpy as np
 import sys
+import tempfile
+import urllib.request
 
 # Add parent directory to path so we can import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -149,9 +151,13 @@ def verify_student(image_path, student_id, known_faces_dir):
     This is the main function called from app.py:
     face_matched = verify_student(certificate_path, student_id, KNOWN_FACES_DIR)
     """
-    # 1. Find the known face photo path for this student (case-insensitively for platform independence)
+    # 1. Find the known face photo for this student
     known_image_path = None
     all_formats = SUPPORTED_FORMATS + ('.pdf',)
+
+    # Check if student's face_photo_path is a URL (Supabase Storage)
+    # We need to look up the DB to get the URL — but face_auth only gets
+    # the local dir. So check local dir first, then try constructing URL path.
     if os.path.exists(known_faces_dir):
         for filename in os.listdir(known_faces_dir):
             base_name, ext = os.path.splitext(filename)

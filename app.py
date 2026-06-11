@@ -1,6 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
 from datetime import datetime
 import os
+import requests as http_requests
+from dotenv import load_dotenv
+load_dotenv()
 from database import (
     init_db, get_db, dict_cursor, get_student, get_student_by_email,
     get_submissions_by_student,
@@ -24,19 +27,52 @@ ALLOWED_PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
+# Supabase Storage config
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
+FACE_BUCKET = 'face-photos'
+
 
 def save_student_face_photo(student_id, face_photo):
+    """Upload face photo to Supabase Storage and return the public URL."""
     if not face_photo or not face_photo.filename:
         return None, 'No photo selected.'
     extension = os.path.splitext(face_photo.filename)[1].lower()
     if extension not in ALLOWED_PHOTO_EXTENSIONS:
         return None, 'Please upload a JPG or PNG image.'
+
+    file_bytes = face_photo.read()
+    storage_path = f'{student_id}{extension}'
+    content_type = 'image/jpeg' if extension in ('.jpg', '.jpeg') else 'image/png'
+
+    if SUPABASE_URL and SUPABASE_KEY:
+        # Upload to Supabase Storage (upsert so re-uploads work)
+        upload_url = f'{SUPABASE_URL}/storage/v1/object/{FACE_BUCKET}/{storage_path}'
+        headers = {
+            'Authorization': f'Bearer {SUPABASE_KEY}',
+            'Content-Type': content_type,
+            'x-upsert': 'true'
+        }
+        resp = http_requests.post(upload_url, headers=headers, data=file_bytes)
+        if resp.status_code in (200, 201):
+            public_url = f'{SUPABASE_URL}/storage/v1/object/public/{FACE_BUCKET}/{storage_path}'
+            # Also save locally for face recognition (fallback)
+            local_path = os.path.join(KNOWN_FACES_DIR, storage_path)
+            with open(local_path, 'wb') as f:
+                f.write(file_bytes)
+            return public_url, None
+        else:
+            print(f'[STORAGE] Upload failed: {resp.status_code} {resp.text}')
+            # Fall back to local storage
+    
+    # Fallback: save locally only
     for ext in ALLOWED_PHOTO_EXTENSIONS:
         old_path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{ext}')
         if os.path.exists(old_path):
             os.remove(old_path)
-    path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{extension}')
-    face_photo.save(path)
+    path = os.path.join(KNOWN_FACES_DIR, storage_path)
+    with open(path, 'wb') as f:
+        f.write(file_bytes)
     return path, None
 
 
@@ -288,7 +324,8 @@ def student_profile():
     sync_student_total_points(student_id)
     student = get_student(student_id)
     submissions = get_submissions_by_student(student_id)
-    has_photo = (student['face_photo_path'] and os.path.exists(student['face_photo_path']))
+    fp = student['face_photo_path']
+    has_photo = bool(fp and (fp.startswith('http') or os.path.exists(fp)))
 
     return render_template('student_profile.html',
                            student=student,
@@ -304,13 +341,17 @@ def student_profile_photo():
         return redirect(url_for('login'))
 
     student = get_student(session['user_id'])
-    if not student['face_photo_path']:
+    photo_path = student['face_photo_path'] if student else None
+    if not photo_path:
         return '', 404
 
-    photo_path = student['face_photo_path']
+    # If it's a Supabase Storage URL, redirect directly to it
+    if photo_path.startswith('http'):
+        return redirect(photo_path)
+
+    # Legacy: local file
     if not os.path.exists(photo_path):
         return '', 404
-
     directory = os.path.dirname(photo_path) or KNOWN_FACES_DIR
     filename = os.path.basename(photo_path)
     return send_from_directory(directory, filename)

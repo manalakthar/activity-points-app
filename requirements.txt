@@ -7,3 +7,4 @@ numpy
 face_recognition
 pdf2image
 Pillow
+requests
