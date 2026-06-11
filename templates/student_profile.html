@@ -123,6 +123,7 @@
                 <th>Face Verified</th>
                 <th>Status</th>
                 <th>Note</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -175,6 +176,17 @@
                         <span style="color:#e53e3e;">
                             ⚠️ {{ sub.rejection_note }}
                         </span>
+                    {% else %}
+                        <span style="color:#718096;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if sub.status == 'rejected' %}
+                    <a href="{{ url_for('resubmit_claim', submission_id=sub.submission_id) }}"
+                       class="btn btn-outline"
+                       style="padding: 6px 12px; font-size: 12px;">
+                        Resubmit
+                    </a>
                     {% else %}
                         <span style="color:#718096;">—</span>
                     {% endif %}
