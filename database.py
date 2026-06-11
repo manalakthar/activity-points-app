@@ -325,6 +325,18 @@ def get_submissions_by_student(student_id):
     conn.close()
     return submissions
 
+def get_student_submission(submission_id, student_id):
+    conn = get_db()
+    submission = conn.execute('''
+        SELECT s.*, a.activity_name, a.category,
+               a.max_points_participant, a.max_points_organizer
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        WHERE s.submission_id = ? AND s.student_id = ?
+    ''', (submission_id, student_id)).fetchone()
+    conn.close()
+    return submission
+
 def get_pending_submissions_for_mentor(mentor_id):
     conn = get_db()
     submissions = conn.execute('''

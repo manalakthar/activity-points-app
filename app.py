@@ -5,6 +5,7 @@ from database import (
     init_db, get_db, get_student, get_student_by_email,
     get_submissions_by_student,
     sync_student_total_points,
+    get_student_submission,
     get_pending_submissions_for_mentor,
     get_pending_submissions_for_coordinator,
     get_pending_submissions_for_college,
@@ -62,6 +63,49 @@ def resolve_student_mentor(student):
     if not mentor:
         return None, None
     return mentor['mentor_id'], mentor['name']
+
+
+def process_certificate_upload(certificate, student_id):
+    """Save certificate and run OCR / face verification."""
+    if not certificate or not certificate.filename:
+        return None, None, 0
+
+    extension = os.path.splitext(certificate.filename)[1].lower()
+    filename = f"{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}{extension}"
+    certificate_path = os.path.join(UPLOAD_FOLDER, filename)
+    certificate.save(certificate_path)
+
+    extracted_text = None
+    face_matched = False
+
+    try:
+        from modules.ocr import extract_text
+        extracted_text = extract_text(certificate_path)
+    except Exception as e:
+        print(f"[OCR] Error during text extraction: {e}")
+
+    try:
+        from modules.face_auth import verify_student
+        face_matched = verify_student(
+            certificate_path, student_id, KNOWN_FACES_DIR
+        )
+    except Exception as e:
+        print(f"[FACE] Face recognition error for student={student_id}: {e}")
+
+    return certificate_path, extracted_text, 1 if face_matched else 0
+
+
+def render_submit_form(student, mentor_id, mentor_name, activities,
+                       resubmit_submission=None, error=None):
+    return render_template(
+        'submit_claim.html',
+        activities=activities,
+        student=student,
+        mentor_assigned=mentor_id is not None,
+        mentor_name=mentor_name,
+        resubmit_submission=resubmit_submission,
+        error=error,
+    )
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -358,12 +402,8 @@ def submit_claim():
 
     if request.method == 'POST':
         if not mentor_id:
-            return render_template(
-                'submit_claim.html',
-                activities=activities,
-                student=student,
-                mentor_assigned=False,
-                mentor_name=None,
+            return render_submit_form(
+                student, mentor_id, mentor_name, activities,
                 error=(
                     'You cannot submit this activity because no faculty '
                     'mentor has been assigned to you for this semester. '
@@ -379,38 +419,10 @@ def submit_claim():
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
-        # Handle certificate upload
         certificate = request.files.get('certificate')
-        certificate_path = None
-        extracted_text = None
-        face_matched = 0  # Store as integer for SQLite
-
-        if certificate:
-            extension = os.path.splitext(certificate.filename)[1].lower()
-            filename = f"{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}{extension}"
-            certificate_path = os.path.join(UPLOAD_FOLDER, filename)
-            certificate.save(certificate_path)
-
-            # Run OCR on certificate
-            try:
-                from modules.ocr import extract_text
-                extracted_text = extract_text(certificate_path)
-            except Exception as e:
-                print(f"[OCR] Error during text extraction: {e}")
-
-            # Run face recognition and convert result to integer (1=matched, 0=not)
-            try:
-                from modules.face_auth import verify_student
-                result = verify_student(
-                    certificate_path,
-                    session['user_id'],
-                    KNOWN_FACES_DIR
-                )
-                face_matched = 1 if result else 0
-                print(f"[FACE] face_matched={face_matched} for student={session['user_id']}")
-            except Exception as e:
-                print(f"[FACE] Face recognition error for student={session['user_id']}: {e}")
-                face_matched = 0
+        certificate_path, extracted_text, face_matched = (
+            process_certificate_upload(certificate, session['user_id'])
+        )
 
         conn = get_db()
         conn.execute('''
@@ -422,19 +434,90 @@ def submit_claim():
         ''', (session['user_id'], activity_id, role, organized_by,
               activity_date, duration_hours, points_claimed,
               certificate_path, extracted_text, face_matched,
-              protsaha_updated, mentor_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+              protsaha_updated, mentor_id,
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
 
         conn.commit()
         conn.close()
 
         return redirect(url_for('student_dashboard'))
 
-    return render_template(
-        'submit_claim.html',
-        activities=activities,
-        student=student,
-        mentor_assigned=mentor_id is not None,
-        mentor_name=mentor_name,
+    return render_submit_form(student, mentor_id, mentor_name, activities)
+
+
+@app.route('/student/resubmit/<int:submission_id>', methods=['GET', 'POST'])
+def resubmit_claim(submission_id):
+    if session.get('role') != 'student':
+        return redirect(url_for('login'))
+
+    student = get_student(session['user_id'])
+    mentor_id, mentor_name = resolve_student_mentor(student)
+    activities = get_all_activities()
+    existing = get_student_submission(submission_id, session['user_id'])
+
+    if not existing or existing['status'] != 'rejected':
+        return redirect(url_for('student_dashboard'))
+
+    if request.method == 'POST':
+        if not mentor_id:
+            return render_submit_form(
+                student, mentor_id, mentor_name, activities,
+                resubmit_submission=existing,
+                error=(
+                    'You cannot resubmit this activity because no faculty '
+                    'mentor has been assigned to you for this semester. '
+                    'Please contact your department coordinator or admin.'
+                ),
+            )
+
+        certificate = request.files.get('certificate')
+        certificate_path = existing['certificate_path']
+        extracted_text = existing['extracted_text']
+        face_matched = existing['face_matched']
+
+        if certificate and certificate.filename:
+            certificate_path, extracted_text, face_matched = (
+                process_certificate_upload(certificate, session['user_id'])
+            )
+
+        conn = get_db()
+        conn.execute('''
+            UPDATE submissions
+            SET activity_id = ?, role = ?, organized_by = ?, activity_date = ?,
+                duration_hours = ?, points_claimed = ?,
+                certificate_path = ?, extracted_text = ?, face_matched = ?,
+                protsaha_updated = ?, status = 'pending', mentor_id = ?,
+                submitted_date = ?, reviewed_date = NULL,
+                rejection_note = NULL, points_awarded = 0
+            WHERE submission_id = ? AND student_id = ? AND status = 'rejected'
+        ''', (
+            request.form.get('activity_id'),
+            request.form.get('role'),
+            request.form.get('organized_by'),
+            request.form.get('activity_date'),
+            request.form.get('duration_hours'),
+            request.form.get('points_claimed'),
+            certificate_path,
+            extracted_text,
+            face_matched,
+            1 if request.form.get('protsaha_updated') else 0,
+            mentor_id,
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            submission_id,
+            session['user_id'],
+        ))
+        conn.execute('''
+            DELETE FROM notification_reads
+            WHERE notification_key = ?
+        ''', (f'm-pending-{submission_id}',))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('student_dashboard'))
+
+    return render_submit_form(
+        student, mentor_id, mentor_name, activities,
+        resubmit_submission=existing,
     )
 
 # ============================================================

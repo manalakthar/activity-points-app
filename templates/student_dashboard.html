@@ -117,6 +117,7 @@
                 <th>Status</th>
                 <th>Note</th>
                 <th>Date</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -163,6 +164,15 @@
                 </td>
                 <td style="color: #718096; font-size: 13px;">
                     {{ sub.submitted_date[:10] if sub.submitted_date }}
+                </td>
+                <td>
+                    {% if sub.status == 'rejected' %}
+                    <a href="{{ url_for('resubmit_claim', submission_id=sub.submission_id) }}"
+                       class="btn btn-outline"
+                       style="padding: 6px 12px; font-size: 12px;">
+                        Resubmit
+                    </a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
