@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from datetime import datetime
 import os
 from database import (
-    init_db, get_db, get_student, get_student_by_email,
+    init_db, get_db, dict_cursor, get_student, get_student_by_email,
     get_submissions_by_student,
     sync_student_total_points,
     get_pending_submissions_for_mentor,
@@ -26,48 +26,39 @@ os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
 
 def save_student_face_photo(student_id, face_photo):
-    """Save a student's reference face photo for profile and verification."""
     if not face_photo or not face_photo.filename:
         return None, 'No photo selected.'
-
     extension = os.path.splitext(face_photo.filename)[1].lower()
     if extension not in ALLOWED_PHOTO_EXTENSIONS:
         return None, 'Please upload a JPG or PNG image.'
-
     for ext in ALLOWED_PHOTO_EXTENSIONS:
         old_path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{ext}')
         if os.path.exists(old_path):
             os.remove(old_path)
-
     path = os.path.join(KNOWN_FACES_DIR, f'{student_id}{extension}')
     face_photo.save(path)
     return path, None
 
 
 def resolve_student_mentor(student):
-    """Return assigned mentor for the student's current semester, if any."""
-    mentor_id = get_mentor_for_student(
-        student['student_id'], student['semester']
-    )
+    mentor_id = get_mentor_for_student(student['student_id'], student['semester'])
     if not mentor_id:
         return None, None
-
     conn = get_db()
-    mentor = conn.execute(
-        'SELECT mentor_id, name FROM mentors WHERE mentor_id = ?',
-        (mentor_id,)
-    ).fetchone()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT mentor_id, name FROM mentors WHERE mentor_id = %s', (mentor_id,))
+    mentor = cur.fetchone()
     conn.close()
-
     if not mentor:
         return None, None
     return mentor['mentor_id'], mentor['name']
+
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-# Initialize database when app starts
+
 init_db()
 
 # ============================================================
@@ -87,15 +78,17 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        role = request.form.get('role')  # student/mentor/coordinator
+        role = request.form.get('role')
 
         conn = get_db()
+        cur = dict_cursor(conn)
 
         if role == 'student':
-            user = conn.execute(
-                'SELECT * FROM students WHERE email = ? AND password = ?',
+            cur.execute(
+                'SELECT * FROM students WHERE email = %s AND password = %s',
                 (email, password)
-            ).fetchone()
+            )
+            user = cur.fetchone()
             if user:
                 session['user_id'] = user['student_id']
                 session['role'] = 'student'
@@ -104,10 +97,11 @@ def login():
                 return redirect(url_for('student_dashboard'))
 
         elif role == 'mentor':
-            user = conn.execute(
-                'SELECT * FROM mentors WHERE email = ? AND password = ?',
+            cur.execute(
+                'SELECT * FROM mentors WHERE email = %s AND password = %s',
                 (email, password)
-            ).fetchone()
+            )
+            user = cur.fetchone()
             if user:
                 session['user_id'] = user['mentor_id']
                 session['role'] = 'mentor'
@@ -116,10 +110,11 @@ def login():
                 return redirect(url_for('mentor_dashboard'))
 
         elif role == 'coordinator':
-            user = conn.execute(
-                'SELECT * FROM coordinators WHERE email = ? AND password = ?',
+            cur.execute(
+                'SELECT * FROM coordinators WHERE email = %s AND password = %s',
                 (email, password)
-            ).fetchone()
+            )
+            user = cur.fetchone()
             if user:
                 session['user_id'] = user['coordinator_id']
                 session['role'] = user['role']
@@ -157,38 +152,35 @@ def forgot_password():
         new_password = request.form.get('new_password')
 
         conn = get_db()
-        
-        table = ""
-        id_col = ""
-        if role == 'student':
-            table = "students"
-            id_col = "student_id"
-        elif role == 'mentor':
-            table = "mentors"
-            id_col = "mentor_id"
-        elif role == 'coordinator':
-            table = "coordinators"
-            id_col = "coordinator_id"
+        cur = dict_cursor(conn)
 
-        # Check if user exists with this ID and Email
-        user = conn.execute(
-            f'SELECT * FROM {table} WHERE {id_col} = ? AND email = ?',
+        table = ''
+        id_col = ''
+        if role == 'student':
+            table, id_col = 'students', 'student_id'
+        elif role == 'mentor':
+            table, id_col = 'mentors', 'mentor_id'
+        elif role == 'coordinator':
+            table, id_col = 'coordinators', 'coordinator_id'
+
+        cur.execute(
+            f'SELECT * FROM {table} WHERE {id_col} = %s AND email = %s',
             (user_id, email)
-        ).fetchone()
+        )
+        user = cur.fetchone()
 
         if user:
-            # Update password
-            conn.execute(
-                f'UPDATE {table} SET password = ? WHERE {id_col} = ?',
+            cur.execute(
+                f'UPDATE {table} SET password = %s WHERE {id_col} = %s',
                 (new_password, user_id)
             )
             conn.commit()
             conn.close()
-            return render_template('forgot_password.html', 
+            return render_template('forgot_password.html',
                                    success='Password has been reset successfully!')
-        
+
         conn.close()
-        return render_template('forgot_password.html', 
+        return render_template('forgot_password.html',
                                error='Invalid ID or Email combination')
 
     return render_template('forgot_password.html')
@@ -210,25 +202,22 @@ def register():
         student_type = request.form.get('student_type')
         points_required = 75 if student_type == 'lateral' else 100
 
-        # Handle face photo upload
         face_photo = request.files.get('face_photo')
         face_photo_path = None
-        photo_error = None
 
         if face_photo and face_photo.filename:
-            face_photo_path, photo_error = save_student_face_photo(
-                student_id, face_photo
-            )
+            face_photo_path, photo_error = save_student_face_photo(student_id, face_photo)
             if photo_error:
                 return render_template('register.html', error=photo_error)
 
         try:
             conn = get_db()
-            conn.execute('''
-                INSERT INTO students 
-                (student_id, name, email, password, department, 
+            cur = dict_cursor(conn)
+            cur.execute('''
+                INSERT INTO students
+                (student_id, name, email, password, department,
                  year, semester, student_type, points_required, face_photo_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (student_id, name, email, password, department,
                   year, semester, student_type, points_required, face_photo_path))
             conn.commit()
@@ -237,11 +226,7 @@ def register():
 
         except Exception as e:
             print(f"Registration error: {e}")
-            import sqlite3 as _sqlite3
-            if isinstance(e, _sqlite3.IntegrityError) and 'UNIQUE' in str(e):
-                error_msg = 'Registration failed. A student with this USN or email already exists.'
-            else:
-                error_msg = f'Registration failed: {e}'
+            error_msg = 'Registration failed. A student with this USN or email already exists.'
             try:
                 conn.close()
             except Exception:
@@ -285,18 +270,17 @@ def student_profile():
 
     if request.method == 'POST':
         face_photo = request.files.get('face_photo')
-        face_photo_path, photo_error = save_student_face_photo(
-            student_id, face_photo
-        )
+        face_photo_path, photo_error = save_student_face_photo(student_id, face_photo)
 
         if photo_error:
             error_message = photo_error
         else:
             conn = get_db()
-            conn.execute('''
-                UPDATE students SET face_photo_path = ?
-                WHERE student_id = ?
-            ''', (face_photo_path, student_id))
+            cur = dict_cursor(conn)
+            cur.execute(
+                'UPDATE students SET face_photo_path = %s WHERE student_id = %s',
+                (face_photo_path, student_id)
+            )
             conn.commit()
             conn.close()
             success_message = 'Profile photo updated successfully.'
@@ -304,10 +288,7 @@ def student_profile():
     sync_student_total_points(student_id)
     student = get_student(student_id)
     submissions = get_submissions_by_student(student_id)
-    has_photo = (
-        student['face_photo_path']
-        and os.path.exists(student['face_photo_path'])
-    )
+    has_photo = (student['face_photo_path'] and os.path.exists(student['face_photo_path']))
 
     return render_template('student_profile.html',
                            student=student,
@@ -366,8 +347,7 @@ def submit_claim():
                 mentor_name=None,
                 error=(
                     'You cannot submit this activity because no faculty '
-                    'mentor has been assigned to you for this semester. '
-                    'Please contact your department coordinator or admin.'
+                    'mentor has been assigned to you for this semester.'
                 ),
             )
 
@@ -379,7 +359,6 @@ def submit_claim():
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
-        # Handle certificate upload
         certificate = request.files.get('certificate')
         certificate_path = None
         extracted_text = None
@@ -391,37 +370,31 @@ def submit_claim():
             certificate_path = os.path.join(UPLOAD_FOLDER, filename)
             certificate.save(certificate_path)
 
-            # Run OCR on certificate
             try:
                 from modules.ocr import extract_text
                 extracted_text = extract_text(certificate_path)
             except Exception as e:
                 print(f"OCR error: {e}")
 
-            # Run face recognition
-            # Run face recognition
             try:
-               from modules.face_auth import verify_student
-               face_matched = verify_student(
-               certificate_path,
-               session['user_id'],
-                KNOWN_FACES_DIR
-    )
+                from modules.face_auth import verify_student
+                face_matched = verify_student(certificate_path, session['user_id'], KNOWN_FACES_DIR)
             except Exception as e:
-             print(f"Face recognition error: {e}")
+                print(f"Face recognition error: {e}")
 
         conn = get_db()
-        conn.execute('''
+        cur = dict_cursor(conn)
+        cur.execute('''
             INSERT INTO submissions
             (student_id, activity_id, role, organized_by, activity_date,
              duration_hours, points_claimed, certificate_path, extracted_text,
              face_matched, protsaha_updated, status, mentor_id, submitted_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
         ''', (session['user_id'], activity_id, role, organized_by,
               activity_date, duration_hours, points_claimed,
               certificate_path, extracted_text, face_matched,
-              protsaha_updated, mentor_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-
+              protsaha_updated, mentor_id,
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
         conn.close()
 
@@ -459,31 +432,33 @@ def mentor_review(submission_id):
         return redirect(url_for('login'))
 
     conn = get_db()
+    cur = dict_cursor(conn)
 
     if request.method == 'POST':
         action = request.form.get('action')
         rejection_note = request.form.get('rejection_note', '')
         status = 'mentor_approved' if action == 'approve' else 'rejected'
 
-        conn.execute('''
+        cur.execute('''
             UPDATE submissions
-            SET status = ?, reviewed_date = ?,
-            rejection_note = ?
-            WHERE submission_id = ?
-        ''', (status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            SET status = %s, reviewed_date = %s, rejection_note = %s
+            WHERE submission_id = %s
+        ''', (status,
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
               rejection_note if action == 'reject' else None,
               submission_id))
         conn.commit()
         conn.close()
         return redirect(url_for('mentor_dashboard'))
 
-    submission = conn.execute('''
-        SELECT s.*, a.activity_name, a.category, st.name as student_name
+    cur.execute('''
+        SELECT s.*, a.activity_name, a.category, st.name AS student_name
         FROM submissions s
         JOIN activities a ON s.activity_id = a.activity_id
         JOIN students st ON s.student_id = st.student_id
-        WHERE s.submission_id = ?
-    ''', (submission_id,)).fetchone()
+        WHERE s.submission_id = %s
+    ''', (submission_id,))
+    submission = cur.fetchone()
     conn.close()
 
     return render_template('mentor_review.html', submission=submission)
@@ -512,6 +487,7 @@ def coordinator_review(submission_id):
         return redirect(url_for('login'))
 
     conn = get_db()
+    cur = dict_cursor(conn)
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -519,31 +495,29 @@ def coordinator_review(submission_id):
         rejection_note = request.form.get('rejection_note', '')
 
         if action == 'approve':
-            conn.execute('''
+            cur.execute('''
                 UPDATE submissions
-                SET status = 'approved', points_awarded = ?,
-                reviewed_date = ?, rejection_note = NULL
-                WHERE submission_id = ?
+                SET status = 'approved', points_awarded = %s,
+                    reviewed_date = %s, rejection_note = NULL
+                WHERE submission_id = %s
             ''', (points_awarded,
                   datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                   submission_id))
 
-            submission = conn.execute(
-                'SELECT student_id FROM submissions '
-                'WHERE submission_id = ?',
+            cur.execute(
+                'SELECT student_id FROM submissions WHERE submission_id = %s',
                 (submission_id,)
-            ).fetchone()
-
+            )
+            submission = cur.fetchone()
             conn.commit()
             conn.close()
             sync_student_total_points(submission['student_id'])
-
         else:
-            conn.execute('''
+            cur.execute('''
                 UPDATE submissions
-                SET status = 'rejected', reviewed_date = ?,
-                rejection_note = ?
-                WHERE submission_id = ?
+                SET status = 'rejected', reviewed_date = %s,
+                    rejection_note = %s
+                WHERE submission_id = %s
             ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                   rejection_note, submission_id))
             conn.commit()
@@ -551,15 +525,16 @@ def coordinator_review(submission_id):
 
         return redirect(url_for('coordinator_dashboard'))
 
-    submission = conn.execute('''
+    cur.execute('''
         SELECT s.*, a.activity_name, a.category,
                a.max_points_participant, a.max_points_organizer,
-               st.name as student_name
+               st.name AS student_name
         FROM submissions s
         JOIN activities a ON s.activity_id = a.activity_id
         JOIN students st ON s.student_id = st.student_id
-        WHERE s.submission_id = ?
-    ''', (submission_id,)).fetchone()
+        WHERE s.submission_id = %s
+    ''', (submission_id,))
+    submission = cur.fetchone()
     conn.close()
 
     return render_template('coordinator_review.html', submission=submission)
@@ -576,9 +551,9 @@ def college_dashboard():
     submissions = get_pending_submissions_for_college()
 
     conn = get_db()
-    watchlist = conn.execute(
-        'SELECT * FROM students WHERE watch_list = 1'
-    ).fetchall()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT * FROM students WHERE watch_list = 1')
+    watchlist = cur.fetchall()
     conn.close()
 
     return render_template('college_dashboard.html',
@@ -596,53 +571,51 @@ def college_review(submission_id):
         return redirect(url_for('login'))
 
     conn = get_db()
+    cur = dict_cursor(conn)
 
     if request.method == 'POST':
         action = request.form.get('action')
         points_awarded = int(request.form.get('points_awarded', 0))
 
         if action == 'approve':
-            # Update submission
-            conn.execute('''
+            cur.execute('''
                 UPDATE submissions
-                SET status = 'approved', points_awarded = ?,
-                reviewed_date = ?
-                WHERE submission_id = ?
+                SET status = 'approved', points_awarded = %s,
+                    reviewed_date = %s
+                WHERE submission_id = %s
             ''', (points_awarded,
                   datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                   submission_id))
 
-            # Get student id from submission
-            submission = conn.execute(
-                'SELECT student_id FROM submissions WHERE submission_id = ?',
+            cur.execute(
+                'SELECT student_id FROM submissions WHERE submission_id = %s',
                 (submission_id,)
-            ).fetchone()
-
-            # Add points to student
+            )
+            submission = cur.fetchone()
             conn.commit()
             conn.close()
             sync_student_total_points(submission['student_id'])
-
         else:
-            conn.execute('''
+            cur.execute('''
                 UPDATE submissions
-                SET status = 'rejected', reviewed_date = ?
-                WHERE submission_id = ?
+                SET status = 'rejected', reviewed_date = %s
+                WHERE submission_id = %s
             ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), submission_id))
             conn.commit()
             conn.close()
 
         return redirect(url_for('college_dashboard'))
 
-    submission = conn.execute('''
-        SELECT s.*, a.activity_name, a.category, 
+    cur.execute('''
+        SELECT s.*, a.activity_name, a.category,
                a.max_points_participant, a.max_points_organizer,
-               st.name as student_name
+               st.name AS student_name
         FROM submissions s
         JOIN activities a ON s.activity_id = a.activity_id
         JOIN students st ON s.student_id = st.student_id
-        WHERE s.submission_id = ?
-    ''', (submission_id,)).fetchone()
+        WHERE s.submission_id = %s
+    ''', (submission_id,))
+    submission = cur.fetchone()
     conn.close()
 
     return render_template('college_review.html', submission=submission)
@@ -650,20 +623,20 @@ def college_review(submission_id):
 # ============================================================
 # WATCHLIST
 # ============================================================
+
 @app.route('/coordinator/watchlist')
 def watchlist():
     if session.get('role') != 'departmental':
         return redirect(url_for('login'))
 
     conn = get_db()
-    students = conn.execute(
-        'SELECT * FROM students WHERE watch_list = 1'
-    ).fetchall()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT * FROM students WHERE watch_list = 1')
+    students = cur.fetchall()
     conn.close()
 
     return render_template('watchlist.html', students=students)
 
-    # ============================================================
 # ============================================================
 # ADMIN LOGIN
 # ============================================================
@@ -674,23 +647,13 @@ def admin_login():
         email = request.form.get('email')
         password = request.form.get('password')
 
-        print(f"[ADMIN LOGIN] Received email=[{email}] password=[{password}]")
-
         conn = get_db()
-        admin = conn.execute(
-            'SELECT * FROM admins WHERE email = ? AND password = ?',
+        cur = dict_cursor(conn)
+        cur.execute(
+            'SELECT * FROM admins WHERE email = %s AND password = %s',
             (email, password)
-        ).fetchone()
-
-        # Debug: also check if the email exists at all
-        admin_by_email = conn.execute(
-            'SELECT email, password FROM admins WHERE email = ?',
-            (email,)
-        ).fetchone()
-        if admin_by_email:
-            print(f"[ADMIN LOGIN] DB has email=[{admin_by_email['email']}] password=[{admin_by_email['password']}]")
-        else:
-            print(f"[ADMIN LOGIN] No admin found with email=[{email}]")
+        )
+        admin = cur.fetchone()
         conn.close()
 
         if admin:
@@ -699,8 +662,7 @@ def admin_login():
             session['name'] = admin['name']
             return redirect(url_for('admin_dashboard'))
 
-        return render_template('admin_login.html',
-                               error='Invalid email or password')
+        return render_template('admin_login.html', error='Invalid email or password')
 
     return render_template('admin_login.html')
 
@@ -714,15 +676,13 @@ def admin_dashboard():
         return redirect(url_for('admin_login'))
 
     conn = get_db()
-    students = conn.execute(
-        'SELECT * FROM students ORDER BY name'
-    ).fetchall()
-    mentors = conn.execute(
-        'SELECT * FROM mentors ORDER BY name'
-    ).fetchall()
-    coordinators = conn.execute(
-        'SELECT * FROM coordinators ORDER BY name'
-    ).fetchall()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT * FROM students ORDER BY name')
+    students = cur.fetchall()
+    cur.execute('SELECT * FROM mentors ORDER BY name')
+    mentors = cur.fetchall()
+    cur.execute('SELECT * FROM coordinators ORDER BY name')
+    coordinators = cur.fetchall()
     conn.close()
 
     return render_template('admin_dashboard.html',
@@ -749,10 +709,10 @@ def admin_add_mentor():
 
         try:
             conn = get_db()
-            conn.execute('''
-                INSERT INTO mentors
-                (mentor_id, name, email, password, department)
-                VALUES (?, ?, ?, ?, ?)
+            cur = dict_cursor(conn)
+            cur.execute('''
+                INSERT INTO mentors (mentor_id, name, email, password, department)
+                VALUES (%s, %s, %s, %s, %s)
             ''', (mentor_id, name, email, password, department))
             conn.commit()
             conn.close()
@@ -782,10 +742,11 @@ def admin_add_coordinator():
 
         try:
             conn = get_db()
-            conn.execute('''
+            cur = dict_cursor(conn)
+            cur.execute('''
                 INSERT INTO coordinators
                 (coordinator_id, name, email, password, role, department)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
             ''', (coordinator_id, name, email, password, role, department))
             conn.commit()
             conn.close()
@@ -804,19 +765,21 @@ def admin_add_coordinator():
 def admin_delete(user_type, user_id):
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
+
     conn = get_db()
+    cur = dict_cursor(conn)
+
     if user_type == 'mentor':
-        conn.execute('DELETE FROM mentors WHERE mentor_id = ?', (user_id,))
+        cur.execute('DELETE FROM mentors WHERE mentor_id = %s', (user_id,))
     elif user_type == 'coordinator':
-        conn.execute(
-            'DELETE FROM coordinators WHERE coordinator_id = ?', (user_id,)
-        )
+        cur.execute('DELETE FROM coordinators WHERE coordinator_id = %s', (user_id,))
     elif user_type == 'student':
-        conn.execute('DELETE FROM students WHERE student_id = ?', (user_id,))
+        cur.execute('DELETE FROM students WHERE student_id = %s', (user_id,))
+
     conn.commit()
     conn.close()
-
     return redirect(url_for('admin_dashboard'))
+
 # ============================================================
 # ADMIN — MENTOR ASSIGNMENTS
 # ============================================================
@@ -829,12 +792,11 @@ def admin_assignments():
     assignments = get_all_assignments()
 
     conn = get_db()
-    students = conn.execute(
-        'SELECT * FROM students ORDER BY name'
-    ).fetchall()
-    mentors = conn.execute(
-        'SELECT * FROM mentors ORDER BY name'
-    ).fetchall()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT * FROM students ORDER BY name')
+    students = cur.fetchall()
+    cur.execute('SELECT * FROM mentors ORDER BY name')
+    mentors = cur.fetchall()
     conn.close()
 
     return render_template('admin_assignments.html',
@@ -855,31 +817,29 @@ def assign_mentor():
 
     try:
         conn = get_db()
-        # Check if assignment already exists for this
-        # student + semester
-        existing = conn.execute('''
+        cur = dict_cursor(conn)
+
+        cur.execute('''
             SELECT assignment_id FROM mentor_assignments
-            WHERE student_id = ? AND semester = ?
-        ''', (student_id, semester)).fetchone()
+            WHERE student_id = %s AND semester = %s
+        ''', (student_id, semester))
+        existing = cur.fetchone()
 
         if existing:
-            # Update existing assignment
-            conn.execute('''
+            cur.execute('''
                 UPDATE mentor_assignments
-                SET mentor_id = ?, academic_year = ?
-                WHERE student_id = ? AND semester = ?
+                SET mentor_id = %s, academic_year = %s
+                WHERE student_id = %s AND semester = %s
             ''', (mentor_id, academic_year, student_id, semester))
         else:
-            # Create new assignment
-            conn.execute('''
+            cur.execute('''
                 INSERT INTO mentor_assignments
                 (student_id, mentor_id, semester, academic_year)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
             ''', (student_id, mentor_id, semester, academic_year))
 
         conn.commit()
         conn.close()
-
     except Exception as e:
         print(f"Assignment error: {e}")
 
@@ -892,13 +852,10 @@ def delete_assignment(assignment_id):
         return redirect(url_for('admin_login'))
 
     conn = get_db()
-    conn.execute(
-        'DELETE FROM mentor_assignments WHERE assignment_id = ?',
-        (assignment_id,)
-    )
+    cur = dict_cursor(conn)
+    cur.execute('DELETE FROM mentor_assignments WHERE assignment_id = %s', (assignment_id,))
     conn.commit()
     conn.close()
-
     return redirect(url_for('admin_assignments'))
 
 # ============================================================
@@ -911,15 +868,16 @@ def bulk_assign():
         return redirect(url_for('admin_login'))
 
     conn = get_db()
-    mentors = conn.execute(
-        'SELECT * FROM mentors ORDER BY name'
-    ).fetchall()
+    cur = dict_cursor(conn)
+    cur.execute('SELECT * FROM mentors ORDER BY name')
+    mentors = cur.fetchall()
 
-    departments = conn.execute('''
+    cur.execute('''
         SELECT DISTINCT department, semester
         FROM students
         ORDER BY department, semester
-    ''').fetchall()
+    ''')
+    departments = cur.fetchall()
 
     selected_dept = request.args.get('department', '')
     selected_sem = request.args.get('semester', '')
@@ -927,24 +885,21 @@ def bulk_assign():
 
     students = []
     if selected_dept and selected_sem:
-        students = conn.execute('''
+        cur.execute('''
             SELECT s.*,
-                   ma.mentor_id as assigned_mentor_id,
-                   m.name as assigned_mentor_name
+                   ma.mentor_id AS assigned_mentor_id,
+                   m.name AS assigned_mentor_name
             FROM students s
             LEFT JOIN mentor_assignments ma
-                ON s.student_id = ma.student_id
-                AND ma.semester = ?
-            LEFT JOIN mentors m
-                ON ma.mentor_id = m.mentor_id
-            WHERE s.department = ? AND s.semester = ?
+                ON s.student_id = ma.student_id AND ma.semester = %s
+            LEFT JOIN mentors m ON ma.mentor_id = m.mentor_id
+            WHERE s.department = %s AND s.semester = %s
             ORDER BY s.student_id
-        ''', (selected_sem, selected_dept,
-              selected_sem)).fetchall()
+        ''', (selected_sem, selected_dept, selected_sem))
+        students = cur.fetchall()
 
     conn.close()
 
-    # Auto divide into groups based on group_size
     groups = []
     for i in range(0, len(students), group_size):
         groups.append(list(students[i:i + group_size]))
@@ -968,18 +923,14 @@ def bulk_assign_save():
     semester = request.form.get('semester')
     department = request.form.get('department')
 
-    # Get all group mentor assignments from form
-    # Form sends: group_0_mentor, group_1_mentor, etc.
-    # And group_0_students = comma separated student IDs
-
     conn = get_db()
+    cur = dict_cursor(conn)
     assigned_count = 0
-
     group_index = 0
+
     while True:
         mentor_id = request.form.get(f'group_{group_index}_mentor')
         student_ids = request.form.get(f'group_{group_index}_students')
-
         if mentor_id is None:
             break
 
@@ -989,28 +940,24 @@ def bulk_assign_save():
                 if not student_id:
                     continue
 
-                # Check if assignment already exists
-                existing = conn.execute('''
+                cur.execute('''
                     SELECT assignment_id FROM mentor_assignments
-                    WHERE student_id = ? AND semester = ?
-                ''', (student_id, semester)).fetchone()
+                    WHERE student_id = %s AND semester = %s
+                ''', (student_id, semester))
+                existing = cur.fetchone()
 
                 if existing:
-                    # Update existing
-                    conn.execute('''
+                    cur.execute('''
                         UPDATE mentor_assignments
-                        SET mentor_id = ?, academic_year = ?
-                        WHERE student_id = ? AND semester = ?
-                    ''', (mentor_id, academic_year,
-                          student_id, semester))
+                        SET mentor_id = %s, academic_year = %s
+                        WHERE student_id = %s AND semester = %s
+                    ''', (mentor_id, academic_year, student_id, semester))
                 else:
-                    # Create new
-                    conn.execute('''
+                    cur.execute('''
                         INSERT INTO mentor_assignments
                         (student_id, mentor_id, semester, academic_year)
-                        VALUES (?, ?, ?, ?)
-                    ''', (student_id, mentor_id,
-                          semester, academic_year))
+                        VALUES (%s, %s, %s, %s)
+                    ''', (student_id, mentor_id, semester, academic_year))
 
                 assigned_count += 1
 
@@ -1018,11 +965,11 @@ def bulk_assign_save():
 
     conn.commit()
     conn.close()
-
     return redirect(url_for('bulk_assign',
                             department=department,
                             semester=semester,
                             success=assigned_count))
+
 # ============================================================
 # ADMIN — ACADEMIC CALENDAR
 # ============================================================
@@ -1032,8 +979,6 @@ def admin_calendar():
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
 
-    from database import get_all_calendars, get_current_calendar
-
     if request.method == 'POST':
         semester = request.form.get('semester')
         academic_year = request.form.get('academic_year')
@@ -1042,20 +987,16 @@ def admin_calendar():
         is_current = 1 if request.form.get('is_current') else 0
 
         conn = get_db()
+        cur = dict_cursor(conn)
 
-        # If setting as current, unset all others first
         if is_current:
-            conn.execute(
-                'UPDATE academic_calendar SET is_current = 0'
-            )
+            cur.execute('UPDATE academic_calendar SET is_current = 0')
 
-        conn.execute('''
+        cur.execute('''
             INSERT INTO academic_calendar
-            (semester, academic_year, start_date,
-             end_date, is_current, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (semester, academic_year, start_date,
-              end_date, is_current,
+            (semester, academic_year, start_date, end_date, is_current, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (semester, academic_year, start_date, end_date, is_current,
               datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
 
         conn.commit()
@@ -1064,9 +1005,7 @@ def admin_calendar():
 
     calendars = get_all_calendars()
     current = get_current_calendar()
-    return render_template('admin_calendar.html',
-                           calendars=calendars,
-                           current=current)
+    return render_template('admin_calendar.html', calendars=calendars, current=current)
 
 
 @app.route('/admin/calendar/set_current/<int:calendar_id>')
@@ -1075,11 +1014,9 @@ def set_current_calendar(calendar_id):
         return redirect(url_for('admin_login'))
 
     conn = get_db()
-    conn.execute('UPDATE academic_calendar SET is_current = 0')
-    conn.execute(
-        'UPDATE academic_calendar SET is_current = 1 WHERE calendar_id = ?',
-        (calendar_id,)
-    )
+    cur = dict_cursor(conn)
+    cur.execute('UPDATE academic_calendar SET is_current = 0')
+    cur.execute('UPDATE academic_calendar SET is_current = 1 WHERE calendar_id = %s', (calendar_id,))
     conn.commit()
     conn.close()
     return redirect(url_for('admin_calendar'))
@@ -1091,14 +1028,11 @@ def delete_calendar(calendar_id):
         return redirect(url_for('admin_login'))
 
     conn = get_db()
-    conn.execute(
-        'DELETE FROM academic_calendar WHERE calendar_id = ?',
-        (calendar_id,)
-    )
+    cur = dict_cursor(conn)
+    cur.execute('DELETE FROM academic_calendar WHERE calendar_id = %s', (calendar_id,))
     conn.commit()
     conn.close()
     return redirect(url_for('admin_calendar'))
-
 
 # ============================================================
 # ADMIN — ADVANCE SEMESTER
@@ -1109,34 +1043,24 @@ def advance_semester():
     if session.get('role') != 'admin':
         return redirect(url_for('admin_login'))
 
-    from database import (get_current_calendar,
-                          get_eligible_students, advance_students)
-
     current_calendar = get_current_calendar()
     eligible_students = []
     success_message = None
 
     if current_calendar:
-        eligible_students = get_eligible_students(
-            current_calendar['semester']
-        )
+        eligible_students = get_eligible_students(current_calendar['semester'])
 
     if request.method == 'POST':
-        # Get selected student IDs from form
         selected_ids = request.form.getlist('student_ids')
         academic_year = request.form.get('academic_year')
 
         if selected_ids:
             advance_students(selected_ids, academic_year)
             success_message = (
-                f"Successfully advanced {len(selected_ids)} "
-                f"students to next semester!"
+                f"Successfully advanced {len(selected_ids)} students to next semester!"
             )
-            # Refresh eligible students list
             if current_calendar:
-                eligible_students = get_eligible_students(
-                    current_calendar['semester']
-                )
+                eligible_students = get_eligible_students(current_calendar['semester'])
 
     return render_template('admin_advance_semester.html',
                            current_calendar=current_calendar,
@@ -1144,7 +1068,7 @@ def advance_semester():
                            success_message=success_message)
 
 # ============================================================
-# RUN APP
+# NOTIFICATIONS
 # ============================================================
 
 @app.route('/notifications')
@@ -1157,16 +1081,18 @@ def get_notifications():
     read_keys = get_read_notification_keys(user_id, role)
 
     conn = get_db()
+    cur = dict_cursor(conn)
     notifications = []
 
     if role == 'student':
-        reviewed = conn.execute('''
+        cur.execute('''
             SELECT s.submission_id, a.activity_name, s.status, s.points_awarded
             FROM submissions s
             JOIN activities a ON s.activity_id = a.activity_id
-            WHERE s.student_id = ?
+            WHERE s.student_id = %s
             AND s.status IN ('approved', 'rejected', 'mentor_approved')
-        ''', (user_id,)).fetchall()
+        ''', (user_id,))
+        reviewed = cur.fetchall()
 
         for r in reviewed:
             notif_id = f"s-{r['submission_id']}-{r['status']}"
@@ -1192,11 +1118,12 @@ def get_notifications():
                 })
 
     elif role == 'mentor':
-        pending = conn.execute('''
+        cur.execute('''
             SELECT submission_id FROM submissions
-            WHERE mentor_id = ? AND status = 'pending'
+            WHERE mentor_id = %s AND status = 'pending'
             ORDER BY submission_id
-        ''', (user_id,)).fetchall()
+        ''', (user_id,))
+        pending = cur.fetchall()
 
         unread_ids = [
             p['submission_id'] for p in pending
@@ -1211,11 +1138,12 @@ def get_notifications():
             })
 
     elif role in ('departmental', 'college'):
-        pending = conn.execute('''
+        cur.execute('''
             SELECT submission_id FROM submissions
             WHERE status = 'mentor_approved'
             ORDER BY submission_id
-        ''').fetchall()
+        ''')
+        pending = cur.fetchall()
 
         unread_ids = [
             p['submission_id'] for p in pending
@@ -1258,6 +1186,7 @@ def read_notifications():
 
     mark_notifications_read(session['user_id'], session.get('role'), expanded_keys)
     return jsonify({'ok': True})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

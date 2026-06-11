@@ -1,0 +1,9 @@
+flask
+psycopg2-binary
+python-dotenv
+pytesseract
+opencv-python
+numpy
+face_recognition
+pdf2image
+Pillow
