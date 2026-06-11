@@ -383,7 +383,7 @@ def submit_claim():
         certificate = request.files.get('certificate')
         certificate_path = None
         extracted_text = None
-        face_matched = False
+        face_matched = 0  # Store as integer for SQLite
 
         if certificate:
             extension = os.path.splitext(certificate.filename)[1].lower()
@@ -396,19 +396,21 @@ def submit_claim():
                 from modules.ocr import extract_text
                 extracted_text = extract_text(certificate_path)
             except Exception as e:
-                print(f"OCR error: {e}")
+                print(f"[OCR] Error during text extraction: {e}")
 
-            # Run face recognition
-            # Run face recognition
+            # Run face recognition and convert result to integer (1=matched, 0=not)
             try:
-               from modules.face_auth import verify_student
-               face_matched = verify_student(
-               certificate_path,
-               session['user_id'],
-                KNOWN_FACES_DIR
-    )
+                from modules.face_auth import verify_student
+                result = verify_student(
+                    certificate_path,
+                    session['user_id'],
+                    KNOWN_FACES_DIR
+                )
+                face_matched = 1 if result else 0
+                print(f"[FACE] face_matched={face_matched} for student={session['user_id']}")
             except Exception as e:
-             print(f"Face recognition error: {e}")
+                print(f"[FACE] Face recognition error for student={session['user_id']}: {e}")
+                face_matched = 0
 
         conn = get_db()
         conn.execute('''

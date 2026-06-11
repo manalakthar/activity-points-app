@@ -27,9 +27,13 @@ def load_image_for_face(image_path):
             return None
 
     elif extension in SUPPORTED_FORMATS:
-        img = face_recognition.load_image_file(image_path)
-        print(f"[FACE] Loaded image: {image_path}")
-        return img
+        try:
+            img = face_recognition.load_image_file(image_path)
+            print(f"[FACE] Loaded image: {image_path}")
+            return img
+        except Exception as e:
+            print(f"[FACE] Error loading image {image_path}: {e}")
+            return None
 
     else:
         print(f"[FACE] Unsupported file type: {extension}")
@@ -63,7 +67,11 @@ def load_known_faces(known_faces_dir):
             if image is None:
                 continue
 
-            encodings = face_recognition.face_encodings(image)
+            try:
+                encodings = face_recognition.face_encodings(image)
+            except Exception as e:
+                print(f"[FACE] Error getting encodings for {filename}: {e}")
+                continue
 
             if encodings:
                 known_encodings.append(encodings[0])
@@ -90,7 +98,11 @@ def recognize_faces(image_path, known_encodings, known_names):
         return []
 
     # Find all faces in the image
-    face_locations = face_recognition.face_locations(image)
+    try:
+        face_locations = face_recognition.face_locations(image)
+    except Exception as e:
+        print(f"[FACE] Error finding face locations: {e}")
+        return []
 
     if not face_locations:
         print("[FACE] No faces found")
@@ -99,7 +111,11 @@ def recognize_faces(image_path, known_encodings, known_names):
     print(f"[FACE] Found {len(face_locations)} face(s)")
 
     # Get encodings for found faces
-    face_encodings = face_recognition.face_encodings(image, face_locations)
+    try:
+        face_encodings = face_recognition.face_encodings(image, face_locations)
+    except Exception as e:
+        print(f"[FACE] Error getting face encodings: {e}")
+        return []
 
     results = []
 
@@ -127,21 +143,70 @@ def recognize_faces(image_path, known_encodings, known_names):
 
 def verify_student(image_path, student_id, known_faces_dir):
     """
-    Simplified function to verify if a specific student
-    is present in an uploaded image.
+    Verify if a specific student is present in an uploaded image.
     Returns True if student is found, False otherwise.
 
     This is the main function called from app.py:
     face_matched = verify_student(certificate_path, student_id, KNOWN_FACES_DIR)
     """
-    known_encodings, known_names = load_known_faces(known_faces_dir)
-    faces_found = recognize_faces(image_path, known_encodings, known_names)
+    # 1. Find the known face photo path for this student (case-insensitively for platform independence)
+    known_image_path = None
+    all_formats = SUPPORTED_FORMATS + ('.pdf',)
+    if os.path.exists(known_faces_dir):
+        for filename in os.listdir(known_faces_dir):
+            base_name, ext = os.path.splitext(filename)
+            if base_name.lower() == student_id.lower() and ext.lower() in all_formats:
+                known_image_path = os.path.join(known_faces_dir, filename)
+                break
 
-    # Check if this student's ID appears in results
-    for name in faces_found:
-        if student_id.lower() in name.lower():
-            print(f"[FACE] Student {student_id} verified! ✅")
-            return True
+    if not known_image_path:
+        print(f"[FACE] No known face photo found for student: {student_id}")
+        return False
 
-    print(f"[FACE] Student {student_id} NOT verified ❌")
+    # 2. Load the student's known face encoding
+    known_image = load_image_for_face(known_image_path)
+    if known_image is None:
+        print(f"[FACE] Could not load known face photo for student: {student_id}")
+        return False
+
+    try:
+        known_encodings = face_recognition.face_encodings(known_image)
+    except Exception as e:
+        print(f"[FACE] Error getting known face encoding for student {student_id}: {e}")
+        return False
+
+    if not known_encodings:
+        print(f"[FACE] No face found in known face photo for student: {student_id}")
+        return False
+    student_encoding = known_encodings[0]
+
+    # 3. Load the uploaded image and find all face encodings in it
+    uploaded_image = load_image_for_face(image_path)
+    if uploaded_image is None:
+        print(f"[FACE] Could not load uploaded image: {image_path}")
+        return False
+
+    try:
+        face_locations = face_recognition.face_locations(uploaded_image)
+    except Exception as e:
+        print(f"[FACE] Error finding face locations in uploaded image: {e}")
+        return False
+
+    if not face_locations:
+        print(f"[FACE] No faces found in uploaded image")
+        return False
+
+    try:
+        uploaded_encodings = face_recognition.face_encodings(uploaded_image, face_locations)
+    except Exception as e:
+        print(f"[FACE] Error getting face encodings in uploaded image: {e}")
+        return False
+
+    # 4. Compare all uploaded faces against the student's encoding
+    matches = face_recognition.compare_faces(uploaded_encodings, student_encoding)
+    if True in matches:
+        print(f"[FACE] Student {student_id} VERIFIED OK")
+        return True
+
+    print(f"[FACE] Student {student_id} NOT verified")
     return False
