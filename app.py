@@ -454,6 +454,94 @@ def submit_claim():
     )
 
 # ============================================================
+# RESUBMIT CLAIM
+# ============================================================
+
+@app.route('/student/resubmit/<int:submission_id>', methods=['GET', 'POST'])
+def resubmit_claim(submission_id):
+    if session.get('role') != 'student':
+        return redirect(url_for('login'))
+
+    student = get_student(session['user_id'])
+    mentor_id, mentor_name = resolve_student_mentor(student)
+    activities = get_all_activities()
+
+    conn = get_db()
+    cur = dict_cursor(conn)
+    cur.execute('''
+        SELECT s.*, a.activity_name FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        WHERE s.submission_id = %s AND s.student_id = %s
+    ''', (submission_id, session['user_id']))
+    submission = cur.fetchone()
+    conn.close()
+
+    if not submission:
+        return redirect(url_for('student_dashboard'))
+
+    if request.method == 'POST':
+        activity_id = request.form.get('activity_id')
+        role = request.form.get('role')
+        organized_by = request.form.get('organized_by')
+        activity_date = request.form.get('activity_date')
+        duration_hours = request.form.get('duration_hours')
+        points_claimed = request.form.get('points_claimed')
+        protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
+
+        certificate = request.files.get('certificate')
+        certificate_path = submission['certificate_path']
+        extracted_text = submission['extracted_text']
+        face_matched = submission['face_matched'] or 0
+
+        if certificate and certificate.filename:
+            extension = os.path.splitext(certificate.filename)[1].lower()
+            filename = f"{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}{extension}"
+            certificate_path = os.path.join(UPLOAD_FOLDER, filename)
+            certificate.save(certificate_path)
+
+            try:
+                from modules.ocr import extract_text
+                extracted_text = extract_text(certificate_path)
+            except Exception as e:
+                print(f"OCR error: {e}")
+
+            try:
+                from modules.face_auth import verify_student
+                result = verify_student(certificate_path, session['user_id'], KNOWN_FACES_DIR)
+                face_matched = 1 if result else 0
+            except Exception as e:
+                print(f"Face recognition error: {e}")
+                face_matched = 0
+
+        conn = get_db()
+        cur = dict_cursor(conn)
+        cur.execute('''
+            UPDATE submissions
+            SET activity_id = %s, role = %s, organized_by = %s,
+                activity_date = %s, duration_hours = %s, points_claimed = %s,
+                certificate_path = %s, extracted_text = %s, face_matched = %s,
+                protsaha_updated = %s, status = 'pending',
+                rejection_note = NULL, submitted_date = %s
+            WHERE submission_id = %s AND student_id = %s
+        ''', (activity_id, role, organized_by, activity_date, duration_hours,
+              points_claimed, certificate_path, extracted_text, face_matched,
+              protsaha_updated, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              submission_id, session['user_id']))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('student_dashboard'))
+
+    return render_template(
+        'submit_claim.html',
+        activities=activities,
+        student=student,
+        mentor_assigned=mentor_id is not None,
+        mentor_name=mentor_name,
+        resubmit_submission=submission,
+    )
+
+# ============================================================
 # MENTOR DASHBOARD
 # ============================================================
 
