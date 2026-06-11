@@ -50,10 +50,12 @@ def save_student_face_photo(student_id, face_photo):
         upload_url = f'{SUPABASE_URL}/storage/v1/object/{FACE_BUCKET}/{storage_path}'
         headers = {
             'Authorization': f'Bearer {SUPABASE_KEY}',
+            'apikey': SUPABASE_KEY,
             'Content-Type': content_type,
             'x-upsert': 'true'
         }
         resp = http_requests.post(upload_url, headers=headers, data=file_bytes)
+        print(f'[STORAGE] Upload response: {resp.status_code} {resp.text}')
         if resp.status_code in (200, 201):
             public_url = f'{SUPABASE_URL}/storage/v1/object/public/{FACE_BUCKET}/{storage_path}'
             # Also save locally for face recognition (fallback)
@@ -403,7 +405,7 @@ def submit_claim():
         certificate = request.files.get('certificate')
         certificate_path = None
         extracted_text = None
-        face_matched = False
+        face_matched = 0
 
         if certificate:
             extension = os.path.splitext(certificate.filename)[1].lower()
@@ -419,9 +421,11 @@ def submit_claim():
 
             try:
                 from modules.face_auth import verify_student
-                face_matched = verify_student(certificate_path, session['user_id'], KNOWN_FACES_DIR)
+                result = verify_student(certificate_path, session['user_id'], KNOWN_FACES_DIR)
+                face_matched = 1 if result else 0
             except Exception as e:
                 print(f"Face recognition error: {e}")
+                face_matched = 0
 
         conn = get_db()
         cur = dict_cursor(conn)
