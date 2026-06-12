@@ -41,11 +41,17 @@
 </div>
 {% endif %}
 
+{% if reached_limit %}
+<div class="alert alert-error">
+    🚫 You have reached your limit of 25 claimed points for this academic year (Year {{ student.year }}). You cannot submit further claims until the next year.
+</div>
+{% endif %}
+
 <div class="card">
     <form method="POST"
           action="{% if resubmit_submission %}{{ url_for('resubmit_claim', submission_id=resubmit_submission.submission_id) }}{% else %}{{ url_for('submit_claim') }}{% endif %}"
           enctype="multipart/form-data"
-          {% if not mentor_assigned %}style="opacity: 0.55; pointer-events: none;"{% endif %}>
+          {% if not mentor_assigned or reached_limit %}style="opacity: 0.55; pointer-events: none;"{% endif %}>
 
         <div class="form-group">
             <label class="form-label">Activity</label>
@@ -185,7 +191,7 @@
         </div>
 
         <div style="display: flex; gap: 12px;">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" {% if reached_limit %}disabled{% endif %}>
                 {% if resubmit_submission %}Resubmit Claim →{% else %}Submit Claim →{% endif %}
             </button>
             <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline">

@@ -50,6 +50,25 @@
         <span>{{ percentage }}% complete</span>
         <span>{{ student.points_required - student.total_points }} points remaining</span>
     </div>
+
+    <!-- Annual Claim Limit Info -->
+    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color, #e2e8f0);
+                display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <div style="font-size: 14px; font-weight: 600; color: var(--text-main, #1a202c);">
+                Academic Year {{ student.year }} Claims Progress
+            </div>
+            <div style="font-size: 12px; color: #718096;">
+                Limit: Max 25 points per academic year (includes pending claims)
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <span style="font-size: 18px; font-weight: 700; color: {% if total_claimed_this_year >= 25 %}#e53e3e{% else %}#3182ce{% endif %};">
+                {{ total_claimed_this_year }} / 25
+            </span>
+            <span style="font-size: 13px; color: #718096;"> pts claimed</span>
+        </div>
+    </div>
 </div>
 
 <!-- Stats -->
@@ -78,6 +97,12 @@
     </div>
 </div>
 
+{% if total_claimed_this_year >= 25 %}
+<div class="alert alert-error">
+    🚫 You have reached your limit of 25 claimed points for this academic year (Year {{ student.year }}). You cannot submit further claims until the next year.
+</div>
+{% endif %}
+
 {% if not mentor_assigned %}
 <div class="alert alert-warning">
     No faculty mentor is assigned to you for Semester {{ student.semester }}.
@@ -88,9 +113,15 @@
 <!-- Quick Actions -->
 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr;
             gap: 16px; margin-bottom: 24px;">
+    {% if total_claimed_this_year >= 25 %}
+    <button class="btn btn-primary" style="opacity: 0.6; cursor: not-allowed;" onclick="alert('You have reached the limit of 25 claimed points for this academic year (Year {{ student.year }}). You cannot submit further claims.')" disabled>
+        + Submit Activity (Limit Reached)
+    </button>
+    {% else %}
     <a href="/student/submit" class="btn btn-primary">
         + Submit Activity
     </a>
+    {% endif %}
     <a href="/activities" class="btn btn-outline">
         Browse Activities
     </a>

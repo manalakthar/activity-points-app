@@ -288,11 +288,19 @@ def student_dashboard():
     submissions = get_submissions_by_student(session['user_id'])
     mentor_id, mentor_name = resolve_student_mentor(student)
 
+    # Calculate points claimed this academic year
+    total_claimed_this_year = sum(
+        (sub['points_awarded'] if sub['status'] == 'approved' else sub['points_claimed'])
+        for sub in submissions
+        if sub['year'] == student['year'] and sub['status'] != 'rejected'
+    )
+
     return render_template('student_dashboard.html',
                            student=student,
                            submissions=submissions,
                            mentor_assigned=mentor_id is not None,
-                           mentor_name=mentor_name)
+                           mentor_name=mentor_name,
+                           total_claimed_this_year=total_claimed_this_year)
 
 # ============================================================
 # STUDENT PROFILE
@@ -381,6 +389,18 @@ def submit_claim():
     mentor_id, mentor_name = resolve_student_mentor(student)
     activities = get_all_activities()
 
+    # Calculate current year claimed points
+    conn = get_db()
+    cur = dict_cursor(conn)
+    cur.execute('''
+        SELECT COALESCE(SUM(CASE WHEN status = 'approved' THEN points_awarded ELSE points_claimed END), 0) as total_claimed
+        FROM submissions
+        WHERE student_id = %s AND year = %s AND status != 'rejected'
+    ''', (session['user_id'], student['year']))
+    total_claimed = cur.fetchone()['total_claimed']
+    conn.close()
+    reached_limit = (total_claimed >= 25)
+
     if request.method == 'POST':
         if not mentor_id:
             return render_template(
@@ -402,6 +422,19 @@ def submit_claim():
         duration_hours = request.form.get('duration_hours')
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
+
+        # Check annual claim limit
+        if total_claimed + int(points_claimed or 0) > 25:
+            return render_template(
+                'submit_claim.html',
+                activities=activities,
+                student=student,
+                mentor_assigned=mentor_id is not None,
+                mentor_name=mentor_name,
+                total_claimed=total_claimed,
+                reached_limit=reached_limit,
+                error=f"You can only claim up to 25 points per academic year. You have already claimed {total_claimed} points, and this claim of {points_claimed} points would exceed the 25-point limit."
+            )
 
         # Fetch activity details to determine duplicate validation rules
         conn = get_db()
@@ -509,6 +542,8 @@ def submit_claim():
         student=student,
         mentor_assigned=mentor_id is not None,
         mentor_name=mentor_name,
+        total_claimed=total_claimed,
+        reached_limit=reached_limit,
     )
 
 # ============================================================
@@ -532,7 +567,17 @@ def resubmit_claim(submission_id):
         WHERE s.submission_id = %s AND s.student_id = %s
     ''', (submission_id, session['user_id']))
     submission = cur.fetchone()
+
+    # Calculate claimed points excluding this submission
+    cur.execute('''
+        SELECT COALESCE(SUM(CASE WHEN status = 'approved' THEN points_awarded ELSE points_claimed END), 0) as total_claimed
+        FROM submissions
+        WHERE student_id = %s AND year = %s AND status != 'rejected' AND submission_id != %s
+    ''', (session['user_id'], student['year'], submission_id))
+    total_claimed = cur.fetchone()['total_claimed']
     conn.close()
+
+    reached_limit = (total_claimed >= 25)
 
     if not submission:
         return redirect(url_for('student_dashboard'))
@@ -546,6 +591,19 @@ def resubmit_claim(submission_id):
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
+        # Check annual claim limit (excluding this submission)
+        if total_claimed + int(points_claimed or 0) > 25:
+            return render_template(
+                'submit_claim.html',
+                activities=activities,
+                student=student,
+                mentor_assigned=mentor_id is not None,
+                mentor_name=mentor_name,
+                resubmit_submission=submission,
+                total_claimed=total_claimed,
+                reached_limit=reached_limit,
+                error=f"You can only claim up to 25 points per academic year. You have already claimed {total_claimed} points in other active submissions, and this resubmitted claim of {points_claimed} points would exceed the 25-point limit."
+            )
         # Fetch activity details to determine duplicate validation rules
         conn = get_db()
         cur = dict_cursor(conn)
@@ -659,6 +717,8 @@ def resubmit_claim(submission_id):
         mentor_assigned=mentor_id is not None,
         mentor_name=mentor_name,
         resubmit_submission=submission,
+        total_claimed=total_claimed,
+        reached_limit=reached_limit,
     )
 
 # ============================================================
