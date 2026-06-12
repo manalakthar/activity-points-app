@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+
+{% block title %}Excel Preview — Mentor Report{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Toolbar ─────────────────────────────────────────────── */
+  .xl-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+    background: var(--card-bg, #fff);
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .xl-toolbar-left { display: flex; flex-direction: column; gap: 2px; }
+  .xl-toolbar-title { font-weight: 700; font-size: 15px; color: var(--text-main, #1a202c); }
+  .xl-toolbar-sub   { font-size: 12px; color: var(--text-muted, #718096); }
+  .xl-toolbar-right { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn-xl-download {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #fff; font-weight: 600; font-size: 13px;
+    padding: 9px 18px; border-radius: 8px; text-decoration: none;
+    box-shadow: 0 3px 10px rgba(22,163,74,0.30);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn-xl-download:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(22,163,74,0.40); }
+  .btn-xl-back {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--card-bg, #fff);
+    color: var(--text-main, #1a202c); font-weight: 600; font-size: 13px;
+    padding: 9px 16px; border-radius: 8px; text-decoration: none;
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    transition: background 0.15s;
+  }
+  .btn-xl-back:hover { background: var(--table-header-bg, #f8fafc); }
+
+  /* ── Sheet tabs ──────────────────────────────────────────── */
+  .xl-sheet-bar {
+    display: flex; gap: 0; align-items: flex-end;
+    border-bottom: 2px solid #1a56db;
+    margin-bottom: 0;
+  }
+  .xl-tab {
+    padding: 8px 22px 9px;
+    font-size: 12.5px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid transparent;
+    border-radius: 8px 8px 0 0; background: var(--table-header-bg, #f1f5f9);
+    color: var(--text-muted, #718096);
+    border-bottom: none; margin-right: 4px;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+  }
+  .xl-tab.active {
+    background: #1a56db; color: #fff;
+    border-color: #1a56db;
+  }
+  .xl-tab:hover:not(.active) { background: #dbeafe; color: #1e40af; }
+
+  /* ── Spreadsheet wrapper ─────────────────────────────────── */
+  .xl-book { border: 1.5px solid #1a56db; border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
+
+  .xl-sheet { display: none; overflow-x: auto; }
+  .xl-sheet.active { display: block; }
+
+  /* ── Spreadsheet table ───────────────────────────────────── */
+  .xl-table {
+    border-collapse: collapse;
+    min-width: 100%;
+    font-size: 12.5px;
+    font-family: 'Calibri', 'Segoe UI', sans-serif;
+  }
+
+  /* Row-number column */
+  .xl-table .xl-rn {
+    background: #f0f4f8; color: #94a3b8;
+    font-size: 11px; text-align: center;
+    padding: 5px 8px; border: 1px solid #d1d9e0;
+    width: 36px; min-width: 36px;
+    user-select: none;
+  }
+
+  /* Column-letter header row */
+  .xl-col-hdr th {
+    background: #e8edf2; color: #64748b;
+    font-size: 11px; font-weight: 600;
+    text-align: center; letter-spacing: 0.03em;
+    padding: 5px 0; border: 1px solid #d1d9e0;
+    min-width: 90px;
+  }
+  .xl-col-hdr th.xl-rn-hdr { width: 36px; min-width: 36px; background: #e2e8f0; }
+
+  /* Title row style */
+  .xl-title-row td {
+    background: #1e3a5f; color: #fff;
+    font-weight: 700; font-size: 13px;
+    text-align: center; padding: 9px 14px;
+    border: 1px solid #1e3a5f;
+  }
+  /* Date row */
+  .xl-date-row td {
+    background: var(--card-bg, #fff); color: #94a3b8;
+    font-style: italic; font-size: 11px;
+    text-align: center; padding: 4px 14px;
+    border: 1px solid #d1d9e0;
+  }
+  /* Header row */
+  .xl-header-row td {
+    background: #1a56db; color: #fff;
+    font-weight: 700; font-size: 12px;
+    padding: 8px 12px;
+    border: 1px solid #1444a8;
+    white-space: nowrap;
+  }
+  /* Student header row (sheet 2) */
+  .xl-student-row td {
+    background: #1e3a5f; color: #fff;
+    font-weight: 700; font-size: 12px;
+    padding: 7px 12px;
+    border: 1px solid #152a47;
+  }
+  /* Activity sub-header row */
+  .xl-act-hdr-row td {
+    background: #2563eb; color: #fff;
+    font-weight: 600; font-size: 11.5px;
+    padding: 6px 12px;
+    border: 1px solid #1d4ed8;
+  }
+  /* Normal data row */
+  .xl-data-row td {
+    background: var(--card-bg, #fff);
+    color: var(--text-main, #1a202c);
+    padding: 6px 12px;
+    border: 1px solid #d1d9e0;
+  }
+  .xl-data-row.xl-alt td { background: #eff6ff; }
+  .xl-data-row:hover td  { background: #dbeafe !important; }
+  /* Empty/spacer row */
+  .xl-spacer-row td { height: 10px; border: 1px solid #e9eef3; background: var(--card-bg, #fff); }
+  .xl-empty-row td {
+    color: #94a3b8; font-style: italic; font-size: 12px;
+    padding: 6px 12px; border: 1px solid #d1d9e0;
+    background: var(--card-bg, #fff);
+  }
+</style>
+
+<!-- Toolbar -->
+<div class="xl-toolbar">
+  <div class="xl-toolbar-left">
+    <div class="xl-toolbar-title">📊 mentor_{{ name | replace(' ', '_') }}_report.xlsx</div>
+    <div class="xl-toolbar-sub">Preview — {{ generated_at }}</div>
+  </div>
+  <div class="xl-toolbar-right">
+    <a href="/mentor/dashboard" class="btn-xl-back" id="btn-back-to-dashboard">← Back to Dashboard</a>
+    <a href="/mentor/export-excel" class="btn-xl-download" id="btn-download-excel">Download Excel</a>
+  </div>
+</div>
+
+<!-- Sheet tabs -->
+<div class="xl-sheet-bar">
+  <div class="xl-tab active" id="tab-sheet1" onclick="switchSheet('sheet1')">📋 Pending Submissions</div>
+  <div class="xl-tab"        id="tab-sheet2" onclick="switchSheet('sheet2')">👥 Students &amp; Activities</div>
+</div>
+
+<!-- Spreadsheet book -->
+<div class="xl-book">
+
+  <!-- ════ SHEET 1 — Pending Submissions ════ -->
+  <div class="xl-sheet active" id="sheet1">
+    <table class="xl-table">
+      <!-- Column-letter header -->
+      <thead>
+        <tr class="xl-col-hdr">
+          <th class="xl-rn-hdr"></th>
+          <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Row 1: Title -->
+        <tr class="xl-title-row">
+          <td class="xl-rn">1</td>
+          <td colspan="7">Pending Submissions — Mentor: {{ name }}</td>
+        </tr>
+        <!-- Row 2: Date -->
+        <tr class="xl-date-row">
+          <td class="xl-rn">2</td>
+          <td colspan="7">Generated on: {{ generated_at }}</td>
+        </tr>
+        <!-- Row 3: Column headers -->
+        <tr class="xl-header-row">
+          <td class="xl-rn">3</td>
+          <td>Student Name</td>
+          <td>Student ID</td>
+          <td>Activity</td>
+          <td>Category</td>
+          <td>Role</td>
+          <td>Points Claimed</td>
+          <td>Submitted Date</td>
+        </tr>
+        <!-- Data rows -->
+        {% if submissions %}
+          {% for sub in submissions %}
+          <tr class="xl-data-row {% if loop.index is even %}xl-alt{% endif %}">
+            <td class="xl-rn">{{ loop.index + 3 }}</td>
+            <td><strong>{{ sub.student_name }}</strong></td>
+            <td style="color:var(--text-muted,#718096);">{{ sub.student_id }}</td>
+            <td>{{ sub.activity_name }}</td>
+            <td>{{ sub.category }}</td>
+            <td style="text-transform:capitalize;">{{ sub.role }}</td>
+            <td style="font-weight:600;">{{ sub.points_claimed }}</td>
+            <td style="color:var(--text-muted,#718096);">{{ sub.submitted_date[:10] if sub.submitted_date else '' }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr class="xl-empty-row">
+            <td class="xl-rn">4</td>
+            <td colspan="7">No pending submissions at this time.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ════ SHEET 2 — Students & Activities ════ -->
+  <div class="xl-sheet" id="sheet2">
+    <table class="xl-table">
+      <thead>
+        <tr class="xl-col-hdr">
+          <th class="xl-rn-hdr"></th>
+          <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Row 1: Title -->
+        <tr class="xl-title-row">
+          <td class="xl-rn">1</td>
+          <td colspan="6">Assigned Students &amp; Approved Activities — Mentor: {{ name }}</td>
+        </tr>
+        <!-- Row 2: Date -->
+        <tr class="xl-date-row">
+          <td class="xl-rn">2</td>
+          <td colspan="6">Generated on: {{ generated_at }}</td>
+        </tr>
+        <!-- Row 3: Column headers -->
+        <tr class="xl-header-row">
+          <td class="xl-rn">3</td>
+          <td>Student Name</td>
+          <td>Student ID</td>
+          <td>Year &amp; Semester</td>
+          <td>Type</td>
+          <td>Points Earned</td>
+          <td>Points Required</td>
+        </tr>
+
+        {% if assigned_students %}
+          {% set ns = namespace(row=4) %}
+          {% for student in assigned_students %}
+
+          <!-- Student row -->
+          <tr class="xl-student-row">
+            <td class="xl-rn">{{ ns.row }}</td>
+            <td><strong>{{ student.name }}</strong></td>
+            <td>{{ student.student_id }}</td>
+            <td>Year {{ student.year }}, Sem {{ student.semester }}</td>
+            <td style="text-transform:capitalize;">{{ student.student_type }}</td>
+            <td>{{ student.total_points }}</td>
+            <td>{{ student.points_required }}</td>
+          </tr>
+          {% set ns.row = ns.row + 1 %}
+
+          {% if student.approved_activities %}
+            <!-- Activity sub-header -->
+            <tr class="xl-act-hdr-row">
+              <td class="xl-rn">{{ ns.row }}</td>
+              <td></td>
+              <td>Activity Name</td>
+              <td>Date</td>
+              <td></td>
+              <td>Points Awarded</td>
+              <td></td>
+            </tr>
+            {% set ns.row = ns.row + 1 %}
+
+            {% for act in student.approved_activities %}
+            <tr class="xl-data-row {% if loop.index is even %}xl-alt{% endif %}">
+              <td class="xl-rn">{{ ns.row }}</td>
+              <td></td>
+              <td>{{ act.activity_name }}</td>
+              <td style="color:var(--text-muted,#718096);">{{ act.submitted_date[:10] if act.submitted_date else '' }}</td>
+              <td></td>
+              <td style="color:#166534; font-weight:700;">+{{ act.points_awarded }}</td>
+              <td></td>
+            </tr>
+            {% set ns.row = ns.row + 1 %}
+            {% endfor %}
+
+          {% else %}
+            <tr class="xl-empty-row">
+              <td class="xl-rn">{{ ns.row }}</td>
+              <td></td>
+              <td colspan="5">No approved activities yet.</td>
+            </tr>
+            {% set ns.row = ns.row + 1 %}
+          {% endif %}
+
+          <!-- Spacer -->
+          <tr class="xl-spacer-row">
+            <td class="xl-rn">{{ ns.row }}</td>
+            <td colspan="6"></td>
+          </tr>
+          {% set ns.row = ns.row + 1 %}
+
+          {% endfor %}
+        {% else %}
+          <tr class="xl-empty-row">
+            <td class="xl-rn">4</td>
+            <td colspan="6">No students assigned.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- end xl-book -->
+
+<script>
+function switchSheet(id) {
+  document.querySelectorAll('.xl-sheet').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.xl-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
+{% endblock %}

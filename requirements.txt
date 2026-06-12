@@ -8,4 +8,5 @@ face_recognition
 pdf2image
 Pillow
 requests
+openpyxl
 setuptools<=80.10.2

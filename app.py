@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 from datetime import datetime
 import os
 import requests as http_requests
@@ -736,6 +736,253 @@ def mentor_dashboard():
                            submissions=submissions,
                            assigned_students=assigned_students,
                            name=session['name'])
+
+# ============================================================
+# MENTOR REPORT VIEW (preview before download)
+# ============================================================
+
+@app.route('/mentor/view-report')
+def mentor_view_report():
+    if session.get('role') != 'mentor':
+        return redirect(url_for('login'))
+
+    submissions = get_pending_submissions_for_mentor(session['user_id'])
+    assigned_students = get_assigned_students_with_activities(session['user_id'])
+
+    # Compute summary totals
+    total_approved = sum(len(s.get('approved_activities', [])) for s in assigned_students)
+    total_pts_awarded = sum(
+        act.get('points_awarded', 0) or 0
+        for s in assigned_students
+        for act in s.get('approved_activities', [])
+    )
+
+    generated_at = datetime.now().strftime('%d %B %Y, %I:%M %p')
+
+    return render_template(
+        'mentor_report_view.html',
+        submissions=submissions,
+        assigned_students=assigned_students,
+        name=session['name'],
+        generated_at=generated_at,
+        total_approved=total_approved,
+        total_pts_awarded=total_pts_awarded,
+    )
+
+
+# ============================================================
+# MENTOR EXCEL EXPORT
+# ============================================================
+
+@app.route('/mentor/export-excel')
+def mentor_export_excel():
+    if session.get('role') != 'mentor':
+        return redirect(url_for('login'))
+
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    import io
+
+    mentor_id   = session['user_id']
+    mentor_name = session['name']
+    submissions = get_pending_submissions_for_mentor(mentor_id)
+    assigned_students = get_assigned_students_with_activities(mentor_id)
+
+    wb = openpyxl.Workbook()
+
+    # ── Helper styles ──────────────────────────────────────────
+    header_font    = Font(bold=True, color='FFFFFF', size=11)
+    header_fill    = PatternFill('solid', fgColor='1A56DB')   # blue
+    sub_header_fill= PatternFill('solid', fgColor='2563EB')   # slightly lighter
+    alt_fill       = PatternFill('solid', fgColor='EFF6FF')   # very light blue
+    section_fill   = PatternFill('solid', fgColor='1E3A5F')   # dark navy for student rows
+    section_font   = Font(bold=True, color='FFFFFF', size=10)
+    center_align   = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align     = Alignment(horizontal='left',   vertical='center', wrap_text=True)
+    thin_side      = Side(style='thin', color='CBD5E0')
+    thin_border    = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    def style_header_row(ws, row_num, col_count, fill=None):
+        fill = fill or header_fill
+        for col in range(1, col_count + 1):
+            cell = ws.cell(row=row_num, column=col)
+            cell.font      = header_font
+            cell.fill      = fill
+            cell.alignment = center_align
+            cell.border    = thin_border
+
+    def style_data_cell(cell, row_num, alt=True):
+        cell.alignment = left_align
+        cell.border    = thin_border
+        if alt and row_num % 2 == 0:
+            cell.fill = alt_fill
+
+    def auto_fit_columns(ws):
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                try:
+                    val = str(cell.value) if cell.value is not None else ''
+                    max_len = max(max_len, len(val))
+                except:
+                    pass
+            ws.column_dimensions[col_letter].width = min(max_len + 4, 45)
+
+    # ══════════════════════════════════════════════════════════
+    # SHEET 1 — Pending Submissions
+    # ══════════════════════════════════════════════════════════
+    ws1 = wb.active
+    ws1.title = 'Pending Submissions'
+
+    # Title row
+    ws1.merge_cells('A1:G1')
+    title_cell = ws1['A1']
+    title_cell.value     = f'Pending Submissions — Mentor: {mentor_name}'
+    title_cell.font      = Font(bold=True, size=13, color='FFFFFF')
+    title_cell.fill      = PatternFill('solid', fgColor='1E3A5F')
+    title_cell.alignment = center_align
+    ws1.row_dimensions[1].height = 24
+
+    # Generated date row
+    ws1.merge_cells('A2:G2')
+    date_cell = ws1['A2']
+    date_cell.value     = f'Generated on: {datetime.now().strftime("%d %B %Y, %I:%M %p")}'
+    date_cell.font      = Font(italic=True, size=9, color='64748B')
+    date_cell.alignment = center_align
+    ws1.row_dimensions[2].height = 16
+
+    # Header row
+    headers1 = ['Student Name', 'Student ID', 'Activity', 'Category', 'Role', 'Points Claimed', 'Submitted Date']
+    for col, h in enumerate(headers1, 1):
+        cell = ws1.cell(row=3, column=col, value=h)
+    style_header_row(ws1, 3, len(headers1))
+    ws1.row_dimensions[3].height = 18
+
+    # Data rows
+    if submissions:
+        for row_num, sub in enumerate(submissions, start=4):
+            values = [
+                sub.get('student_name', ''),
+                sub.get('student_id', ''),
+                sub.get('activity_name', ''),
+                sub.get('category', ''),
+                str(sub.get('role', '')).capitalize(),
+                sub.get('points_claimed', ''),
+                str(sub.get('submitted_date', ''))[:10] if sub.get('submitted_date') else '',
+            ]
+            for col, val in enumerate(values, 1):
+                cell = ws1.cell(row=row_num, column=col, value=val)
+                style_data_cell(cell, row_num)
+    else:
+        ws1.merge_cells('A4:G4')
+        cell = ws1['A4']
+        cell.value     = 'No pending submissions at this time.'
+        cell.font      = Font(italic=True, color='718096')
+        cell.alignment = center_align
+
+    auto_fit_columns(ws1)
+
+    # ══════════════════════════════════════════════════════════
+    # SHEET 2 — Assigned Students & Activities
+    # ══════════════════════════════════════════════════════════
+    ws2 = wb.create_sheet('Students & Activities')
+
+    # Title
+    ws2.merge_cells('A1:F1')
+    t2 = ws2['A1']
+    t2.value     = f'Assigned Students & Approved Activities — Mentor: {mentor_name}'
+    t2.font      = Font(bold=True, size=13, color='FFFFFF')
+    t2.fill      = PatternFill('solid', fgColor='1E3A5F')
+    t2.alignment = center_align
+    ws2.row_dimensions[1].height = 24
+
+    ws2.merge_cells('A2:F2')
+    d2 = ws2['A2']
+    d2.value     = f'Generated on: {datetime.now().strftime("%d %B %Y, %I:%M %p")}'
+    d2.font      = Font(italic=True, size=9, color='64748B')
+    d2.alignment = center_align
+    ws2.row_dimensions[2].height = 16
+
+    col_headers2 = ['Student Name', 'Student ID', 'Year & Semester', 'Type', 'Points Earned', 'Points Required']
+    for col, h in enumerate(col_headers2, 1):
+        cell = ws2.cell(row=3, column=col, value=h)
+    style_header_row(ws2, 3, len(col_headers2))
+    ws2.row_dimensions[3].height = 18
+
+    current_row = 4
+    act_headers = ['', 'Activity Name', 'Date', '', 'Points Awarded', '']
+
+    for student in assigned_students:
+        # Student summary row
+        student_values = [
+            student.get('name', ''),
+            student.get('student_id', ''),
+            f"Year {student.get('year', '')}, Sem {student.get('semester', '')}",
+            str(student.get('student_type', '')).capitalize(),
+            student.get('total_points', 0),
+            student.get('points_required', 0),
+        ]
+        for col, val in enumerate(student_values, 1):
+            cell = ws2.cell(row=current_row, column=col, value=val)
+            cell.font      = section_font
+            cell.fill      = section_fill
+            cell.alignment = left_align
+            cell.border    = thin_border
+        ws2.row_dimensions[current_row].height = 18
+        current_row += 1
+
+        # Activity sub-header
+        acts = student.get('approved_activities', [])
+        if acts:
+            sub_hdr_cols = {'B': 'Activity Name', 'C': 'Date', 'E': 'Points Awarded'}
+            for col_letter, label in sub_hdr_cols.items():
+                cell = ws2[f'{col_letter}{current_row}']
+                cell.value     = label
+                cell.font      = Font(bold=True, color='FFFFFF', size=10)
+                cell.fill      = sub_header_fill
+                cell.alignment = center_align
+                cell.border    = thin_border
+            ws2.row_dimensions[current_row].height = 16
+            current_row += 1
+
+            for act_row, act in enumerate(acts):
+                act_date = str(act.get('submitted_date', ''))[:10] if act.get('submitted_date') else ''
+                act_data = {'B': act.get('activity_name', ''), 'C': act_date, 'E': act.get('points_awarded', '')}
+                for col_letter, val in act_data.items():
+                    cell = ws2[f'{col_letter}{current_row}']
+                    cell.value     = val
+                    cell.border    = thin_border
+                    cell.alignment = left_align
+                    if act_row % 2 == 0:
+                        cell.fill = alt_fill
+                ws2.row_dimensions[current_row].height = 15
+                current_row += 1
+        else:
+            cell = ws2[f'B{current_row}']
+            cell.value     = 'No approved activities yet.'
+            cell.font      = Font(italic=True, color='718096')
+            cell.alignment = left_align
+            current_row += 1
+
+        current_row += 1  # blank spacer between students
+
+    auto_fit_columns(ws2)
+
+    # ── Save to in-memory buffer and send ─────────────────────
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"mentor_{mentor_id}_dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
 
 # ============================================================
 # MENTOR REVIEW
