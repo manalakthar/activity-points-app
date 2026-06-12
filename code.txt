@@ -1,0 +1,14 @@
+import pyperclip
+import sys
+password = {'email':'manal123',
+'blog':'123456'
+}
+if len(sys.argv)<2:
+    sys.exit("Usage: python pyperclip_clipboard.py <account>")
+    account = sys.argv[1]
+    password= password.get(account)
+if password:
+    pyperclip.copy(password)
+    print(f"Password for {account} copied to clipboard ")
+else:
+    print(f"Password for {account} not found.")

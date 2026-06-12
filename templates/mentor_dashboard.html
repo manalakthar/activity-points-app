@@ -67,4 +67,132 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Assigned Students Section -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">My Assigned Students</div>
+        <div class="card-subtitle">
+            {{ assigned_students|length }} student(s) currently assigned to you for their active semester
+        </div>
+    </div>
+
+    {% if assigned_students %}
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Year & Semester</th>
+                <th>Points Progress</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in assigned_students %}
+            <tr>
+                <td>
+                    <strong>{{ student.name }}</strong>
+                    <div style="font-size: 12px; color: var(--text-muted);">
+                        {{ student.student_id }}
+                    </div>
+                </td>
+                <td>
+                    <span class="badge badge-mentor">
+                        Year {{ student.year }}, Sem {{ student.semester }}
+                    </span>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: capitalize;">
+                        {{ student.student_type }} Student
+                    </div>
+                </td>
+                <td>
+                    <div style="width: 200px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 2px;">
+                            <span>{{ student.total_points }} / {{ student.points_required }} pts</span>
+                            <span>{{ (student.total_points / student.points_required * 100)|int }}%</span>
+                        </div>
+                        <div class="progress-container" style="margin: 0; height: 8px;">
+                            {% set percentage = (student.total_points / student.points_required * 100)|int %}
+                            <div class="progress-bar {% if percentage >= 100 %}complete{% endif %}"
+                                 style="width: {{ [percentage, 100]|min }}%"></div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <button type="button" 
+                            id="btn-{{ student.student_id }}" 
+                            class="btn btn-outline"
+                            style="padding: 6px 14px; font-size: 12px;"
+                            onclick="toggleDetails('{{ student.student_id }}')">
+                        View Activities ⬇️
+                    </button>
+                </td>
+            </tr>
+            <tr id="details-{{ student.student_id }}" style="display: none; background-color: var(--table-header-bg);">
+                <td colspan="4" style="padding: 16px 24px;">
+                    <div style="background: var(--card-bg); border: 1.5px solid var(--border-color); border-radius: 12px; padding: 20px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="font-weight: 600; margin-bottom: 12px; font-size: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: var(--text-main);">📚 Approved Activities for {{ student.name }}</span>
+                            <span class="badge badge-approved">Total: {{ student.approved_activities|length }}</span>
+                        </div>
+                        {% if student.approved_activities %}
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="background: none;">
+                                    <th style="padding: 8px 12px; background: none; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">Activity</th>
+                                    <th style="padding: 8px 12px; background: none; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">Date</th>
+                                    <th style="padding: 8px 12px; background: none; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); text-align: right;">Points Awarded</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for act in student.approved_activities %}
+                                <tr>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color);"><strong>{{ act.activity_name }}</strong></td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-muted);">{{ act.submitted_date[:10] if act.submitted_date }}</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); text-align: right; color: #38a169; font-weight: 600;">+{{ act.points_awarded }} pts</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div style="text-align: center; padding: 20px 0; color: var(--text-muted);">
+                            <div style="font-size: 24px; margin-bottom: 8px;">📋</div>
+                            <div style="font-size: 13px;">No approved activities yet.</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        <div style="font-size: 40px; margin-bottom: 12px;">👥</div>
+        <div style="font-weight: 600;">No students assigned</div>
+        <div style="font-size: 14px; margin-top: 8px;">
+            You currently have no students assigned to you for their active semester.
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% block extra_js %}
+<script>
+function toggleDetails(studentId) {
+    const row = document.getElementById('details-' + studentId);
+    const btn = document.getElementById('btn-' + studentId);
+    if (row.style.display === 'none') {
+        row.style.display = 'table-row';
+        btn.innerHTML = 'Hide Activities ⬆️';
+        btn.classList.remove('btn-outline');
+        btn.classList.add('btn-primary');
+    } else {
+        row.style.display = 'none';
+        btn.innerHTML = 'View Activities ⬇️';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline');
+    }
+}
+</script>
+{% endblock %}
 {% endblock %}

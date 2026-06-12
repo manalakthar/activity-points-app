@@ -225,6 +225,50 @@ def get_assignments_for_student(student_id):
     return assignments
 
 
+def get_assigned_students_with_activities(mentor_id):
+    conn = get_db()
+    cur = dict_cursor(conn)
+    cur.execute('''
+        SELECT DISTINCT ON (s.student_id) s.student_id, s.name, s.semester, s.year, s.total_points, s.points_required, s.student_type
+        FROM students s
+        JOIN mentor_assignments ma ON s.student_id = ma.student_id AND s.semester = ma.semester
+        WHERE ma.mentor_id = %s
+        ORDER BY s.student_id
+    ''', (mentor_id,))
+    students = cur.fetchall()
+    
+    if not students:
+        conn.close()
+        return []
+        
+    student_ids = [s['student_id'] for s in students]
+    
+    cur.execute('''
+        SELECT s.student_id, s.points_awarded, a.activity_name, s.submitted_date
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        WHERE s.student_id = ANY(%s) AND s.status = 'approved'
+        ORDER BY s.submitted_date DESC
+    ''', (student_ids,))
+    submissions = cur.fetchall()
+    conn.close()
+    
+    subs_map = {}
+    for sub in submissions:
+        sid = sub['student_id']
+        if sid not in subs_map:
+            subs_map[sid] = []
+        subs_map[sid].append(sub)
+        
+    for s in students:
+        s['approved_activities'] = subs_map.get(s['student_id'], [])
+        
+    # Sort students by name for presentation
+    students.sort(key=lambda x: x['name'])
+    return students
+
+
+
 # ============================================================
 # CALENDAR HELPERS
 # ============================================================

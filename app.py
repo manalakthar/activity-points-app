@@ -14,7 +14,8 @@ from database import (
     get_all_activities, get_mentor_for_student,
     get_all_assignments, get_current_calendar,
     get_all_calendars, get_eligible_students,
-    advance_students, get_read_notification_keys, mark_notifications_read
+    advance_students, get_read_notification_keys, mark_notifications_read,
+    get_assigned_students_with_activities
 )
 
 app = Flask(__name__)
@@ -551,8 +552,10 @@ def mentor_dashboard():
         return redirect(url_for('login'))
 
     submissions = get_pending_submissions_for_mentor(session['user_id'])
+    assigned_students = get_assigned_students_with_activities(session['user_id'])
     return render_template('mentor_dashboard.html',
                            submissions=submissions,
+                           assigned_students=assigned_students,
                            name=session['name'])
 
 # ============================================================
@@ -1014,7 +1017,7 @@ def bulk_assign():
 
     selected_dept = request.args.get('department', '')
     selected_sem = request.args.get('semester', '')
-    group_size = int(request.args.get('group_size', 6))
+    group_size = int(request.args.get('group_size', 30))
 
     students = []
     if selected_dept and selected_sem:
