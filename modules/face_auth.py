@@ -153,21 +153,38 @@ def verify_student(image_path, student_id, known_faces_dir):
     """
     # 1. Find the known face photo for this student
     known_image_path = None
-    all_formats = SUPPORTED_FORMATS + ('.pdf',)
 
-    # Check if student's face_photo_path is a URL (Supabase Storage)
-    # We need to look up the DB to get the URL — but face_auth only gets
-    # the local dir. So check local dir first, then try constructing URL path.
-    if os.path.exists(known_faces_dir):
-        for filename in os.listdir(known_faces_dir):
-            base_name, ext = os.path.splitext(filename)
-            if base_name.lower() == student_id.lower() and ext.lower() in all_formats:
-                known_image_path = os.path.join(known_faces_dir, filename)
-                break
+    # Check if student's face_photo_path is a URL in the database
+    try:
+        import database
+        student = database.get_student(student_id)
+        if student and student.get('face_photo_path'):
+            photo_path = student['face_photo_path']
+            if photo_path.startswith('http'):
+                ext = os.path.splitext(photo_path.split('?')[0])[1].lower() or '.jpeg'
+                local_download_path = os.path.join(known_faces_dir, f"{student_id}_db{ext}")
+                print(f"[FACE] Downloading DB face photo: {photo_path} to {local_download_path}")
+                urllib.request.urlretrieve(photo_path, local_download_path)
+                known_image_path = local_download_path
+            elif os.path.exists(photo_path):
+                known_image_path = photo_path
+    except Exception as e:
+        print(f"[FACE] Error fetching/downloading face photo from DB: {e}")
+
+    # Fallback to scanning local directory
+    if not known_image_path:
+        all_formats = SUPPORTED_FORMATS + ('.pdf',)
+        if os.path.exists(known_faces_dir):
+            for filename in os.listdir(known_faces_dir):
+                base_name, ext = os.path.splitext(filename)
+                if base_name.lower() == student_id.lower() and ext.lower() in all_formats:
+                    known_image_path = os.path.join(known_faces_dir, filename)
+                    break
 
     if not known_image_path:
         print(f"[FACE] No known face photo found for student: {student_id}")
         return False
+
 
     # 2. Load the student's known face encoding
     known_image = load_image_for_face(known_image_path)

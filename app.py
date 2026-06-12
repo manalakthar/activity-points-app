@@ -403,6 +403,61 @@ def submit_claim():
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
+        # Fetch activity details to determine duplicate validation rules
+        conn = get_db()
+        cur = dict_cursor(conn)
+        cur.execute('SELECT activity_name FROM activities WHERE activity_id = %s', (activity_id,))
+        act = cur.fetchone()
+
+        if not act:
+            conn.close()
+            return render_template(
+                'submit_claim.html',
+                activities=activities,
+                student=student,
+                mentor_assigned=mentor_id is not None,
+                mentor_name=mentor_name,
+                error='Invalid activity selected.'
+            )
+
+        is_class_rep = (act['activity_name'] == 'Class Representative')
+
+        if is_class_rep:
+            # Class Representative is limited to once per semester
+            cur.execute('''
+                SELECT COUNT(*) as count FROM submissions
+                WHERE student_id = %s AND activity_id = %s AND semester = %s AND status != 'rejected'
+            ''', (session['user_id'], activity_id, student['semester']))
+            already_claimed = cur.fetchone()['count'] > 0
+            if already_claimed:
+                conn.close()
+                return render_template(
+                    'submit_claim.html',
+                    activities=activities,
+                    student=student,
+                    mentor_assigned=mentor_id is not None,
+                    mentor_name=mentor_name,
+                    error='You have already claimed Class Representative points for this semester.'
+                )
+        else:
+            # All other activities are limited to once per academic year
+            cur.execute('''
+                SELECT COUNT(*) as count FROM submissions
+                WHERE student_id = %s AND activity_id = %s AND year = %s AND status != 'rejected'
+            ''', (session['user_id'], activity_id, student['year']))
+            already_claimed = cur.fetchone()['count'] > 0
+            if already_claimed:
+                conn.close()
+                return render_template(
+                    'submit_claim.html',
+                    activities=activities,
+                    student=student,
+                    mentor_assigned=mentor_id is not None,
+                    mentor_name=mentor_name,
+                    error=f"You have already claimed points for '{act['activity_name']}' in this academic year (Year {student['year']}). It can only be claimed once a year."
+                )
+        conn.close()
+
         certificate = request.files.get('certificate')
         certificate_path = None
         extracted_text = None
@@ -434,13 +489,15 @@ def submit_claim():
             INSERT INTO submissions
             (student_id, activity_id, role, organized_by, activity_date,
              duration_hours, points_claimed, certificate_path, extracted_text,
-             face_matched, protsaha_updated, status, mentor_id, submitted_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+             face_matched, protsaha_updated, status, mentor_id, submitted_date,
+             semester, year)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s)
         ''', (session['user_id'], activity_id, role, organized_by,
               activity_date, duration_hours, points_claimed,
               certificate_path, extracted_text, face_matched,
               protsaha_updated, mentor_id,
-              datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+              datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              student['semester'], student['year']))
         conn.commit()
         conn.close()
 
@@ -489,6 +546,66 @@ def resubmit_claim(submission_id):
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
+        # Fetch activity details to determine duplicate validation rules
+        conn = get_db()
+        cur = dict_cursor(conn)
+        cur.execute('SELECT activity_name FROM activities WHERE activity_id = %s', (activity_id,))
+        act = cur.fetchone()
+
+        if not act:
+            conn.close()
+            return render_template(
+                'submit_claim.html',
+                activities=activities,
+                student=student,
+                mentor_assigned=mentor_id is not None,
+                mentor_name=mentor_name,
+                resubmit_submission=submission,
+                error='Invalid activity selected.'
+            )
+
+        is_class_rep = (act['activity_name'] == 'Class Representative')
+
+        if is_class_rep:
+            # Class Representative is limited to once per semester
+            cur.execute('''
+                SELECT COUNT(*) as count FROM submissions
+                WHERE student_id = %s AND activity_id = %s AND semester = %s 
+                  AND status != 'rejected' AND submission_id != %s
+            ''', (session['user_id'], activity_id, student['semester'], submission_id))
+            already_claimed = cur.fetchone()['count'] > 0
+            if already_claimed:
+                conn.close()
+                return render_template(
+                    'submit_claim.html',
+                    activities=activities,
+                    student=student,
+                    mentor_assigned=mentor_id is not None,
+                    mentor_name=mentor_name,
+                    resubmit_submission=submission,
+                    error='You have already claimed Class Representative points for this semester.'
+                )
+        else:
+            # All other activities are limited to once per academic year
+            cur.execute('''
+                SELECT COUNT(*) as count FROM submissions
+                WHERE student_id = %s AND activity_id = %s AND year = %s 
+                  AND status != 'rejected' AND submission_id != %s
+            ''', (session['user_id'], activity_id, student['year'], submission_id))
+            already_claimed = cur.fetchone()['count'] > 0
+            if already_claimed:
+                conn.close()
+                return render_template(
+                    'submit_claim.html',
+                    activities=activities,
+                    student=student,
+                    mentor_assigned=mentor_id is not None,
+                    mentor_name=mentor_name,
+                    resubmit_submission=submission,
+                    error=f"You have already claimed points for '{act['activity_name']}' in this academic year (Year {student['year']}). It can only be claimed once a year."
+                )
+        conn.close()
+
         certificate = request.files.get('certificate')
         certificate_path = submission['certificate_path']
         extracted_text = submission['extracted_text']
@@ -522,11 +639,13 @@ def resubmit_claim(submission_id):
                 activity_date = %s, duration_hours = %s, points_claimed = %s,
                 certificate_path = %s, extracted_text = %s, face_matched = %s,
                 protsaha_updated = %s, status = 'pending',
-                rejection_note = NULL, submitted_date = %s
+                rejection_note = NULL, submitted_date = %s,
+                semester = %s, year = %s
             WHERE submission_id = %s AND student_id = %s
         ''', (activity_id, role, organized_by, activity_date, duration_hours,
               points_claimed, certificate_path, extracted_text, face_matched,
               protsaha_updated, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              student['semester'], student['year'],
               submission_id, session['user_id']))
         conn.commit()
         conn.close()

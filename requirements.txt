@@ -8,3 +8,4 @@ face_recognition
 pdf2image
 Pillow
 requests
+setuptools<=80.10.2
