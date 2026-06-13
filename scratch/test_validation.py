@@ -21,6 +21,13 @@ class TestActivityFrequencyLimits(unittest.TestCase):
         # Clean up any existing submissions for these test activities first to guarantee clean runs
         conn = get_db()
         cur = conn.cursor()
+        
+        # Find approved submissions to temporarily suspend them so student doesn't exceed 25 points limit during test
+        cur.execute("SELECT submission_id FROM submissions WHERE student_id = %s AND status = 'approved'", (self.student_id,))
+        self.approved_sub_ids = [row[0] for row in cur.fetchall()]
+        if self.approved_sub_ids:
+            cur.execute("UPDATE submissions SET status = 'pending' WHERE submission_id IN %s", (tuple(self.approved_sub_ids),))
+            
         cur.execute("DELETE FROM submissions WHERE student_id = %s AND activity_id IN (7, 14)", (self.student_id,))
         conn.commit()
         conn.close()
@@ -30,6 +37,8 @@ class TestActivityFrequencyLimits(unittest.TestCase):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("DELETE FROM submissions WHERE student_id = %s AND activity_id IN (7, 14)", (self.student_id,))
+        if hasattr(self, 'approved_sub_ids') and self.approved_sub_ids:
+            cur.execute("UPDATE submissions SET status = 'approved' WHERE submission_id IN %s", (tuple(self.approved_sub_ids),))
         conn.commit()
         conn.close()
         self.app_context.pop()

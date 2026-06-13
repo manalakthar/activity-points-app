@@ -288,11 +288,11 @@ def student_dashboard():
     submissions = get_submissions_by_student(session['user_id'])
     mentor_id, mentor_name = resolve_student_mentor(student)
 
-    # Calculate points claimed this academic year
+    # Calculate points approved this academic year
     total_claimed_this_year = sum(
-        (sub['points_awarded'] if sub['status'] == 'approved' else sub['points_claimed'])
+        sub['points_awarded']
         for sub in submissions
-        if sub['year'] == student['year'] and sub['status'] != 'rejected'
+        if sub['year'] == student['year'] and sub['status'] == 'approved'
     )
 
     return render_template('student_dashboard.html',
@@ -389,13 +389,13 @@ def submit_claim():
     mentor_id, mentor_name = resolve_student_mentor(student)
     activities = get_all_activities()
 
-    # Calculate current year claimed points
+    # Calculate current year approved points
     conn = get_db()
     cur = dict_cursor(conn)
     cur.execute('''
-        SELECT COALESCE(SUM(CASE WHEN status = 'approved' THEN points_awarded ELSE points_claimed END), 0) as total_claimed
+        SELECT COALESCE(SUM(points_awarded), 0) as total_claimed
         FROM submissions
-        WHERE student_id = %s AND year = %s AND status != 'rejected'
+        WHERE student_id = %s AND year = %s AND status = 'approved'
     ''', (session['user_id'], student['year']))
     total_claimed = cur.fetchone()['total_claimed']
     conn.close()
@@ -423,8 +423,8 @@ def submit_claim():
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
-        # Check annual claim limit
-        if total_claimed + int(points_claimed or 0) > 25:
+        # Check annual approved limit
+        if total_claimed >= 25:
             return render_template(
                 'submit_claim.html',
                 activities=activities,
@@ -433,7 +433,7 @@ def submit_claim():
                 mentor_name=mentor_name,
                 total_claimed=total_claimed,
                 reached_limit=reached_limit,
-                error=f"You can only claim up to 25 points per academic year. You have already claimed {total_claimed} points, and this claim of {points_claimed} points would exceed the 25-point limit."
+                error="You have already reached the limit of 25 approved points for this academic year. You cannot submit further claims."
             )
 
         # Fetch activity details to determine duplicate validation rules
@@ -568,11 +568,11 @@ def resubmit_claim(submission_id):
     ''', (submission_id, session['user_id']))
     submission = cur.fetchone()
 
-    # Calculate claimed points excluding this submission
+    # Calculate approved points excluding this submission
     cur.execute('''
-        SELECT COALESCE(SUM(CASE WHEN status = 'approved' THEN points_awarded ELSE points_claimed END), 0) as total_claimed
+        SELECT COALESCE(SUM(points_awarded), 0) as total_claimed
         FROM submissions
-        WHERE student_id = %s AND year = %s AND status != 'rejected' AND submission_id != %s
+        WHERE student_id = %s AND year = %s AND status = 'approved' AND submission_id != %s
     ''', (session['user_id'], student['year'], submission_id))
     total_claimed = cur.fetchone()['total_claimed']
     conn.close()
@@ -591,8 +591,8 @@ def resubmit_claim(submission_id):
         points_claimed = request.form.get('points_claimed')
         protsaha_updated = 1 if request.form.get('protsaha_updated') else 0
 
-        # Check annual claim limit (excluding this submission)
-        if total_claimed + int(points_claimed or 0) > 25:
+        # Check annual approved limit
+        if total_claimed >= 25:
             return render_template(
                 'submit_claim.html',
                 activities=activities,
@@ -602,7 +602,7 @@ def resubmit_claim(submission_id):
                 resubmit_submission=submission,
                 total_claimed=total_claimed,
                 reached_limit=reached_limit,
-                error=f"You can only claim up to 25 points per academic year. You have already claimed {total_claimed} points in other active submissions, and this resubmitted claim of {points_claimed} points would exceed the 25-point limit."
+                error="You have already reached the limit of 25 approved points for this academic year. You cannot resubmit this claim."
             )
         # Fetch activity details to determine duplicate validation rules
         conn = get_db()

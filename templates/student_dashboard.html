@@ -59,7 +59,7 @@
                 Academic Year {{ student.year }} Claims Progress
             </div>
             <div style="font-size: 12px; color: #718096;">
-                Limit: Max 25 points per academic year (includes pending claims)
+                Limit: Max 25 points per academic year (approved claims only)
             </div>
         </div>
         <div style="text-align: right;">
@@ -99,7 +99,7 @@
 
 {% if total_claimed_this_year >= 25 %}
 <div class="alert alert-error">
-    🚫 You have reached your limit of 25 claimed points for this academic year (Year {{ student.year }}). You cannot submit further claims until the next year.
+    🚫 You have reached your limit of 25 approved points for this academic year (Year {{ student.year }}). You cannot submit further claims until the next year.
 </div>
 {% endif %}
 
@@ -114,7 +114,7 @@
 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr;
             gap: 16px; margin-bottom: 24px;">
     {% if total_claimed_this_year >= 25 %}
-    <button class="btn btn-primary" style="opacity: 0.6; cursor: not-allowed;" onclick="alert('You have reached the limit of 25 claimed points for this academic year (Year {{ student.year }}). You cannot submit further claims.')" disabled>
+    <button class="btn btn-primary" style="opacity: 0.6; cursor: not-allowed;" onclick="alert('You have reached the limit of 25 approved points for this academic year (Year {{ student.year }}). You cannot submit further claims.')" disabled>
         + Submit Activity (Limit Reached)
     </button>
     {% else %}
