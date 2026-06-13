@@ -172,7 +172,7 @@
             </div>
 
             <!-- OCR Text -->
-            {% if submission.extracted_text %}
+            {% if submission.certificate_path %}
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">OCR Extracted Text</div>
@@ -180,9 +180,15 @@
                         Text automatically extracted from certificate
                     </div>
                 </div>
+                {% if submission.extracted_text and submission.extracted_text.strip() %}
                 <div class="extracted-text">
                     {{ submission.extracted_text }}
                 </div>
+                {% else %}
+                <div style="padding: 1rem; color: #718096; font-size: 0.85rem; font-style: italic;">
+                    ⚠️ No text could be extracted from this certificate (image may be low quality, handwritten, or a photo).
+                </div>
+                {% endif %}
             </div>
             {% endif %}
 

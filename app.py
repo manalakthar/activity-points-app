@@ -504,7 +504,7 @@ def submit_claim():
 
             try:
                 from modules.ocr import extract_text
-                extracted_text = extract_text(certificate_path)
+                extracted_text = extract_text(certificate_path) or None
             except Exception as e:
                 print(f"OCR error: {e}")
 
@@ -677,7 +677,7 @@ def resubmit_claim(submission_id):
 
             try:
                 from modules.ocr import extract_text
-                extracted_text = extract_text(certificate_path)
+                extracted_text = extract_text(certificate_path) or None
             except Exception as e:
                 print(f"OCR error: {e}")
 
