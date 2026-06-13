@@ -226,10 +226,18 @@ def verify_student(image_path, student_id, known_faces_dir):
         return False
 
     # 4. Compare all uploaded faces against the student's encoding
-    matches = face_recognition.compare_faces(uploaded_encodings, student_encoding)
-    if True in matches:
-        print(f"[FACE] Student {student_id} VERIFIED OK")
-        return True
+    # compare_faces expects (list_of_known_encodings, single_face_to_check, tolerance)
+    # We iterate over each face found in the uploaded image and check if it matches the student
+    MATCH_TOLERANCE = 0.5  # Stricter than default 0.6 to reduce false positives
+    for uploaded_encoding in uploaded_encodings:
+        face_distance = face_recognition.face_distance([student_encoding], uploaded_encoding)[0]
+        is_match = face_recognition.compare_faces(
+            [student_encoding], uploaded_encoding, tolerance=MATCH_TOLERANCE
+        )
+        print(f"[FACE] Distance: {face_distance:.4f}, Match: {is_match[0]}")
+        if is_match[0]:
+            print(f"[FACE] Student {student_id} VERIFIED OK (distance={face_distance:.4f})")
+            return True
 
     print(f"[FACE] Student {student_id} NOT verified")
     return False
